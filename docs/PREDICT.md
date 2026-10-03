@@ -51,7 +51,7 @@ Pinned 2026-08-30 (last Pro day; Hub lookup in `docs/hf_snapshot/`):
 - Router id: `openai/gpt-oss-120b:groq` (groq was live on the catalog snapshot; `:fastest` is routing, not a model). The router does not take `@sha`.
 - `extractor_version` model id: `openai/gpt-oss-120b:groq@b5c939de8f754692c1647ca79fbf85e8c1e70f8a` (`predict/extractor.py` `PINNED_EXTRACTOR_MODEL_ID`).
 
-`CASEFILE_LLM_MODEL` must be the router id. Any extraction row made against `:fastest` is scrap. The runner is `python -m casefile.predict.extract_run`.
+`CONSTA_LLM_MODEL` must be the router id. Any extraction row made against `:fastest` is scrap. The runner is `python -m consta.predict.extract_run`.
 
 **Reaction counts are salvageable, but only via the right endpoint.** `GET /repos/{o}/{r}/issues/{n}/reactions` returns one object per reaction carrying its own `created_at` — verified against the GitHub REST docs on 2026-08-24 — so reaction counts *are* reconstructable as of time *T* by filtering `reaction.created_at <= T`. The aggregate `reactions` block on the issue object is current-state and is a leak. Use the list endpoint, never the summary count. This is a real find: it removes the reason to drop the feature.
 
@@ -77,7 +77,7 @@ Two problems, one technical and one about what the product is for.
 
 **Do not average predictions where you have outcomes.** For any issue whose window has elapsed you know what happened. Averaging model probabilities over those items produces a smoothed function of the features, not an estimate of topic health, and it inherits every model error without inheriting any of the data. The model earns its place only on the items that have *not* resolved yet — the censored ones. A survival estimator does this composition for you correctly: realized outcomes where they exist, modelled hazard where they do not.
 
-**A scalar "perspective vs dying" score throws away the distinction Casefile exists to make.** The product question is *should this feature exist upstream*, and the answer is not "the topic is alive". Split the rollup on two axes:
+**A scalar "perspective vs dying" score throws away the distinction Consta exists to make.** The product question is *should this feature exist upstream*, and the answer is not "the topic is alive". Split the rollup on two axes:
 
 - **Demand** — inflow of substantive items on the topic (support questions excluded via the extracted `intent` field), 6-month rate against the preceding 18 months (24-month lookback, non-overlapping). Compare Poisson rate intervals, not a bare ratio; refuse when a window is below a minimum count.
 - **Supply** — hazard of R1 resolution, summarised as restricted mean time to substantive resolution at 180 days (RMST, which is defined under censoring), and its trend.
@@ -288,9 +288,9 @@ Two gates. The rollup is descriptive (realized inflow × realized R1 rates). The
 
 ## 8. Packaging
 
-No change to the plan in the strategy note: dump the trees to text, walk them in ~60 lines of pure Python, no `lightgbm`, `onnxruntime` or NumPy in the core install. Training lives in a separate repo that is never in the wheel. Model artifacts ship as Release assets, cached under `~/.cache/casefile/models/`, version pinned in the profile YAML so a stale model is as visible as a stale profile.
+No change to the plan in the strategy note: dump the trees to text, walk them in ~60 lines of pure Python, no `lightgbm`, `onnxruntime` or NumPy in the core install. Training lives in a separate repo that is never in the wheel. Model artifacts ship as Release assets, cached under `~/.cache/consta/models/`, version pinned in the profile YAML so a stale model is as visible as a stale profile.
 
-The LLM extractor is a *runtime* dependency for live scoring, which is new and needs a decision: either the extracted fields are computed at assess time (costs a call per item, needs a key — breaks the keyless demo path Track B W3 is protecting), or the Blocks 1–4 model is the shipped default and Block 6 is opt-in behind `--extract`. **Default to the second.** The keyless `uvx casefile assess` line is worth more to the talk than a few points of Brier.
+The LLM extractor is a *runtime* dependency for live scoring, which is new and needs a decision: either the extracted fields are computed at assess time (costs a call per item, needs a key — breaks the keyless demo path Track B W3 is protecting), or the Blocks 1–4 model is the shipped default and Block 6 is opt-in behind `--extract`. **Default to the second.** The keyless `uvx consta assess` line is worth more to the talk than a few points of Brier.
 
 ---
 
@@ -320,7 +320,7 @@ If that trade is acceptable, this is the cut that is genuinely buildable and bac
 
 | Window | Work | Verify |
 |---|---|---|
-| to 13 Sep | Track B + slides that do not need the model | `uvx casefile --help`; deck runs without a hazard number |
+| to 13 Sep | Track B + slides that do not need the model | `uvx consta --help`; deck runs without a hazard number |
 | 14 Sep – 4 Oct | Corpus, labels, person-period, baselines, hazard, ablation | Kill criterion in writing Saturday 4 Oct |
 | 5 – 11 Oct | Buffer: rollup wiring / export, or empty | A slipping model stops here, not in rehearsal week |
 | 12 – 18 Oct | Live `torch/masked` quadrant, reports, rehearsal | Frozen Saturday 18 Oct |

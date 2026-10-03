@@ -25,15 +25,15 @@ Six curated scenarios live in [`eval/sample_cases.yaml`](../eval/sample_cases.ya
 
 Selecting a card fills the form (question, repo, path, profile, tier, synthesis default). Edit before submitting if needed.
 
-To add or change presets, edit the YAML only — `casefile.web.app` loads it at request time.
+To add or change presets, edit the YAML only — `consta.web.app` loads it at request time.
 
 ## Install and run
 
 ```bash
-cd casefile
+cd consta
 pip install -e ".[dev,web]"
-# configure .env (CASEFILE_GITHUB_TOKEN, optional LLM keys)
-casefile-web
+# configure .env (CONSTA_GITHUB_TOKEN, optional LLM keys)
+consta-web
 # open http://127.0.0.1:5050
 ```
 
@@ -43,10 +43,10 @@ Environment:
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `CASEFILE_WEB_HOST` | `127.0.0.1` | Bind address |
-| `CASEFILE_WEB_PORT` | `5050` | Port |
-| `CASEFILE_FLASK_SECRET` | dev placeholder | Session/flash secret — **set in production** |
-| `CASEFILE_WEB_DEBUG` | off | Flask debug (never on public internet) |
+| `CONSTA_WEB_HOST` | `127.0.0.1` | Bind address |
+| `CONSTA_WEB_PORT` | `5050` | Port |
+| `CONSTA_FLASK_SECRET` | dev placeholder | Session/flash secret — **set in production** |
+| `CONSTA_WEB_DEBUG` | off | Flask debug (never on public internet) |
 
 ## Routes
 

@@ -1,13 +1,13 @@
-# Casefile
+# Consta
 
-Evidence-first briefs for OSS contribution decisions. Given a question and a target repository, Casefile retrieves cited evidence (issues, commits, docs, adjacent projects) and optionally synthesizes a short summary. Humans keep the final call.
+Evidence-first briefs for OSS contribution decisions. Given a question and a target repository, Consta retrieves cited evidence (issues, commits, docs, adjacent projects) and optionally synthesizes a short summary. Humans keep the final call.
 
 ```bash
-pip install hitherto
-uvx hitherto assess -q "…" -r pytorch/pytorch -p torch/masked --no-synthesis
+pip install consta
+uvx consta assess -q "…" -r pytorch/pytorch -p torch/masked --no-synthesis
 ```
 
-The PyPI name and CLI are `hitherto`. Python import stays `import casefile`.
+*Consta* is Latin, Italian and Spanish for "it is on record, it stands as fact". The tool reports what the evidence establishes and leaves the verdict to you.
 
 **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
 
@@ -17,7 +17,7 @@ Product backlog and delivery dates live in the private Arraxis planning workspac
 
 ```bash
 pip install -e ".[dev]"      # CLI + tests
-pip install -e ".[dev,web]"  # + Flask UI (hitherto-web)
+pip install -e ".[dev,web]"  # + Flask UI (consta-web)
 ```
 
 ## Configure
@@ -30,18 +30,18 @@ cp .env.example .env
 
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CASEFILE_GITHUB_TOKEN` | Yes (live runs) | Fine-grained PAT or classic `public_repo` |
-| `CASEFILE_LLM_PROVIDER` | Optional | `huggingface`, `openai` or `anthropic` (code default: `anthropic`; `.env.example` sets `huggingface`) |
-| `CASEFILE_HF_TOKEN` | Optional | Synthesis via the Hugging Face router; also used for gated Hub discussions |
-| `CASEFILE_OPENAI_API_KEY` | Optional | Synthesis via OpenAI |
-| `CASEFILE_ANTHROPIC_API_KEY` | Optional | Synthesis via Anthropic |
-| `CASEFILE_LLM_MODEL` | Optional | Override the provider's default model |
+| `CONSTA_GITHUB_TOKEN` | Yes (live runs) | Fine-grained PAT or classic `public_repo` |
+| `CONSTA_LLM_PROVIDER` | Optional | `huggingface`, `openai` or `anthropic` (code default: `anthropic`; `.env.example` sets `huggingface`) |
+| `CONSTA_HF_TOKEN` | Optional | Synthesis via the Hugging Face router; also used for gated Hub discussions |
+| `CONSTA_OPENAI_API_KEY` | Optional | Synthesis via OpenAI |
+| `CONSTA_ANTHROPIC_API_KEY` | Optional | Synthesis via Anthropic |
+| `CONSTA_LLM_MODEL` | Optional | Override the provider's default model |
 
 ## Web UI
 
 ```bash
 pip install -e ".[web]"
-hitherto-web
+consta-web
 # http://127.0.0.1:5050 — form, sample cases, cited report (Bootstrap)
 ```
 
@@ -52,10 +52,10 @@ See [docs/WEB_UI.md](docs/WEB_UI.md) and [docs/STATUS.md](docs/STATUS.md).
 ## Commands
 
 ```bash
-hitherto ping
-hitherto list-profiles
+consta ping
+consta list-profiles
 
-hitherto assess \
+consta assess \
   --question "Is reviving torch.masked worth an upstream contribution?" \
   --repo pytorch/pytorch \
   --path torch/masked \
@@ -76,8 +76,8 @@ See [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
 ```bash
 pytest -v
-CASEFILE_RUN_LIVE=1 pytest tests/test_live.py -v
-hitherto ping
+CONSTA_RUN_LIVE=1 pytest tests/test_live.py -v
+consta ping
 ```
 
 ## Ecosystem profiles
@@ -89,7 +89,7 @@ hitherto ping
 | `sklearn` | `scikit-learn/scikit-learn` | SLEPs, metadata routing, estimator API |
 
 ```bash
-hitherto list-profiles
+consta list-profiles
 ./scripts/run_sample_assessments.sh   # needs .env
 python scripts/validate_reports.py
 ```
@@ -108,7 +108,7 @@ jobs:
   brief:
     runs-on: ubuntu-latest
     steps:
-      - uses: sulimovp/hitherto/action@main
+      - uses: sulimovp/consta/action@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           ecosystem: pytorch

@@ -1,6 +1,6 @@
 """GitHub search disk cache."""
 
-from casefile.cache.github_search import GitHubSearchCache
+from consta.cache.github_search import GitHubSearchCache
 
 
 def test_search_cache_roundtrip(tmp_path):

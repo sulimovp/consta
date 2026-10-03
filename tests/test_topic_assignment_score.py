@@ -1,6 +1,6 @@
 """Offline fixture for scripts/score_topic_assignment.py."""
 
-from casefile.predict.assignment_score import (
+from consta.predict.assignment_score import (
     automatic_assign,
     score_assignment,
     wilson_interval,

@@ -20,7 +20,7 @@ Shared findings that we inherit, not reinvent:
 2. Tree ensembles are the usual baseline; random train/test overstates accuracy vs temporal splits.
 3. Long-tail durations are normal; mean absolute error on hours is the common metric, not competing-risk CIF.
 
-## What Casefile claims that this literature does not
+## What Consta claims that this literature does not
 
 - **Module / path level**, not issue-tracker row level alone — `torch/masked` vs the repo.
 - **Competing risks** — R1 (linked merge touching the path) vs R2 (administrative close) vs censored, not "closed".

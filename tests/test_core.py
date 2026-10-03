@@ -1,13 +1,13 @@
 import pytest
 
-from casefile.engine.citation_checker import check_citations
-from casefile.engine.planner import _issue_search_queries, build_plan
-from casefile.engine.synthesizer import _parse_synthesis
-from casefile.models.assessment import AssessmentRequest
-from casefile.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
-from casefile.models.profile import EcosystemProfile
-from casefile.profiles import load_profile
-from casefile.render.markdown import render_markdown
+from consta.engine.citation_checker import check_citations
+from consta.engine.planner import _issue_search_queries, build_plan
+from consta.engine.synthesizer import _parse_synthesis
+from consta.models.assessment import AssessmentRequest
+from consta.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
+from consta.models.profile import EcosystemProfile
+from consta.profiles import load_profile
+from consta.render.markdown import render_markdown
 
 
 @pytest.fixture
@@ -17,7 +17,7 @@ def pytorch_profile(profiles_dir):
 
 @pytest.fixture
 def profiles_dir():
-    from casefile.config import get_settings
+    from consta.config import get_settings
 
     return get_settings().resolved_profiles_dir()
 
@@ -116,7 +116,7 @@ def test_parse_synthesis_prose_plus_json():
 
 
 def test_planner_includes_pinned_issues(pytorch_profile):
-    from casefile.models.assessment import AssessmentRequest
+    from consta.models.assessment import AssessmentRequest
 
     request = AssessmentRequest(
         question="Is reviving torch.masked worth it?",
@@ -131,8 +131,8 @@ def test_planner_includes_pinned_issues(pytorch_profile):
 
 
 def test_validator_drops_off_topic_issues(pytorch_profile):
-    from casefile.engine.validator import validate_evidence
-    from casefile.models.assessment import AssessmentRequest
+    from consta.engine.validator import validate_evidence
+    from consta.models.assessment import AssessmentRequest
 
     request = AssessmentRequest(
         question="torch.masked MaskedTensor",
@@ -307,7 +307,7 @@ def test_render_markdown_minimal():
         source_retriever="test",
         metadata={"exclusion_reason": "off-topic: no token match"},
     )
-    from casefile.models.assessment import AssessmentReport
+    from consta.models.assessment import AssessmentReport
 
     report = AssessmentReport(
         request=request,
@@ -328,8 +328,8 @@ def test_render_markdown_minimal():
 
 
 def test_excluded_adjacent_renders_with_reason(pytorch_profile):
-    from casefile.engine.orchestrator import _heuristic_open_questions
-    from casefile.models.assessment import AssessmentReport
+    from consta.engine.orchestrator import _heuristic_open_questions
+    from consta.models.assessment import AssessmentReport
 
     dropped = EvidenceItem(
         id="adjacent-nestedtensor",
@@ -356,10 +356,10 @@ def test_excluded_adjacent_renders_with_reason(pytorch_profile):
 
 def test_validator_excludes_project_name_only_issues(pytorch_profile):
     """Apertus failure mode: 'EOS token' body mentions the project and truncated 'model'."""
-    from casefile.engine.validator import validate_evidence
-    from casefile.models.assessment import AssessmentRequest
-    from casefile.profiles import load_profile
-    from casefile.config import get_settings
+    from consta.engine.validator import validate_evidence
+    from consta.models.assessment import AssessmentRequest
+    from consta.profiles import load_profile
+    from consta.config import get_settings
 
     profile = load_profile(get_settings().resolved_profiles_dir(), "apertus", allow_stale=True)
     request = AssessmentRequest(
@@ -399,10 +399,10 @@ def test_profile_expanded_terms(pytorch_profile):
 async def test_pinned_query_keeps_only_exact_issue(httpx_mock, tmp_path):
     import httpx as _httpx
 
-    from casefile.clients import build_clients
-    from casefile.config import Settings
-    from casefile.retrievers.base import RetrievalSpec
-    from casefile.retrievers.github_issues import GitHubIssuesRetriever
+    from consta.clients import build_clients
+    from consta.config import Settings
+    from consta.retrievers.base import RetrievalSpec
+    from consta.retrievers.github_issues import GitHubIssuesRetriever
 
     httpx_mock.add_response(
         json={
@@ -439,9 +439,9 @@ def test_non_numeric_citation_keys_are_ignored():
 
 @pytest.mark.asyncio
 async def test_llm_failure_keeps_evidence(monkeypatch, tmp_path):
-    from casefile.engine import orchestrator
-    from casefile.engine.orchestrator import AssessmentEngine
-    from casefile.config import Settings
+    from consta.engine import orchestrator
+    from consta.engine.orchestrator import AssessmentEngine
+    from consta.config import Settings
 
     item = EvidenceItem(
         id="issue-1",
@@ -470,7 +470,7 @@ async def test_llm_failure_keeps_evidence(monkeypatch, tmp_path):
 
 
 def test_display_summary_escapes_markdown_inside_quotes_only():
-    from casefile.render.markdown import display_summary
+    from consta.render.markdown import display_summary
 
     out = display_summary('"`masked_fill` fails" [2] then `code`')
     assert out == '"\\`masked\\_fill\\` fails" [2] then `code`'
@@ -478,10 +478,10 @@ def test_display_summary_escapes_markdown_inside_quotes_only():
 
 @pytest.mark.asyncio
 async def test_retriever_failure_goes_to_diagnostics(monkeypatch, tmp_path):
-    from casefile.config import Settings
-    from casefile.engine import orchestrator
-    from casefile.engine.orchestrator import AssessmentEngine
-    from casefile.retrievers.base import RetrievalSpec
+    from consta.config import Settings
+    from consta.engine import orchestrator
+    from consta.engine.orchestrator import AssessmentEngine
+    from consta.retrievers.base import RetrievalSpec
 
     class Broken:
         name = "github_issues"
@@ -506,8 +506,8 @@ async def test_retriever_failure_goes_to_diagnostics(monkeypatch, tmp_path):
 
 
 def test_skip_reason_explains_withheld_summary():
-    from casefile.models.assessment import AssessmentReport
-    from casefile.render.markdown import render_markdown as render
+    from consta.models.assessment import AssessmentReport
+    from consta.render.markdown import render_markdown as render
 
     report = AssessmentReport(
         request=AssessmentRequest(question="q", repo="o/r"),

@@ -6,7 +6,7 @@ import re
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from casefile.models.assessment import AssessmentReport
+    from consta.models.assessment import AssessmentReport
 
 GOLDEN_PYTORCH_MASKED = (89734, 89320, 124964)
 

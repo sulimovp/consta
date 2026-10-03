@@ -1,10 +1,10 @@
 name: Publish to PyPI
 
 # Trusted publishing — no API token on the laptop.
-# PyPI project name: hitherto
+# PyPI project name: consta
 # One-time setup on https://pypi.org/manage/account/publishing/:
-#   Owner: sulimovp   Repo: hitherto   Workflow: publish.yml   Environment: pypi
-# Then create a GitHub Release tagged v0.1.0.
+#   Owner: sulimovp   Repo: consta   Workflow: publish.yml   Environment: pypi
+# Then create a GitHub Release tagged v<version> (version lives in consta/__init__.py).
 
 on:
   release:

@@ -1,15 +1,15 @@
-"""Optional live API smoke test — set CASEFILE_RUN_LIVE=1 and configure .env."""
+"""Optional live API smoke test — set CONSTA_RUN_LIVE=1 and configure .env."""
 
 import os
 from pathlib import Path
 
 import pytest
 
-from casefile.config import Settings, get_settings
-from casefile.engine.orchestrator import AssessmentEngine
-from casefile.models.assessment import AssessmentRequest
-from casefile.profiles import load_profile
-from casefile.render.markdown import render_markdown
+from consta.config import Settings, get_settings
+from consta.engine.orchestrator import AssessmentEngine
+from consta.models.assessment import AssessmentRequest
+from consta.profiles import load_profile
+from consta.render.markdown import render_markdown
 from tests.report_contract import (
     assert_golden_issues_present,
     assert_markdown_report_contract,
@@ -17,14 +17,14 @@ from tests.report_contract import (
 )
 
 pytestmark = pytest.mark.skipif(
-    os.environ.get("CASEFILE_RUN_LIVE") != "1",
-    reason="Set CASEFILE_RUN_LIVE=1 to run live GitHub/LLM smoke tests",
+    os.environ.get("CONSTA_RUN_LIVE") != "1",
+    reason="Set CONSTA_RUN_LIVE=1 to run live GitHub/LLM smoke tests",
 )
 
 
 @pytest.fixture
 def profiles_dir():
-    from casefile.config import get_settings
+    from consta.config import get_settings
 
     return get_settings().resolved_profiles_dir()
 
@@ -33,7 +33,7 @@ def profiles_dir():
 def live_settings():
     settings = get_settings()
     if not settings.github_token:
-        pytest.skip("CASEFILE_GITHUB_TOKEN not set")
+        pytest.skip("CONSTA_GITHUB_TOKEN not set")
     return settings
 
 

@@ -3,8 +3,8 @@
 import httpx
 import pytest
 
-from casefile.clients.github import GitHubClient
-from casefile.config import Settings
+from consta.clients.github import GitHubClient
+from consta.config import Settings
 
 
 @pytest.mark.asyncio

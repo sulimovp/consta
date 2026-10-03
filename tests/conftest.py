@@ -1,6 +1,6 @@
 import pytest
 
-from casefile.config import get_settings
+from consta.config import get_settings
 
 
 @pytest.fixture

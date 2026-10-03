@@ -22,5 +22,5 @@ jobs:
           python -m build --wheel -o dist
           python -m venv /tmp/wheel-venv
           /tmp/wheel-venv/bin/pip install dist/*.whl
-          cd /tmp && /tmp/wheel-venv/bin/hitherto list-profiles | grep -qx pytorch
-          /tmp/wheel-venv/bin/python -c "from casefile.eval.sample_cases import load_sample_cases; assert load_sample_cases()"
+          cd /tmp && /tmp/wheel-venv/bin/consta list-profiles | grep -qx pytorch
+          /tmp/wheel-venv/bin/python -c "from consta.eval.sample_cases import load_sample_cases; assert load_sample_cases()"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Regenerate sample reports (requires casefile/.env with CASEFILE_GITHUB_TOKEN).
+# Regenerate sample reports (requires .env with CONSTA_GITHUB_TOKEN).
 # Scenarios align with eval/sample_cases.yaml (primary four presets).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -8,7 +8,7 @@ mkdir -p reports
 run() {
   echo "=== $1 ==="
   shift
-  casefile assess "$@"
+  consta assess "$@"
   sleep 25
 }
 

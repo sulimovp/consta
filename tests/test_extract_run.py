@@ -6,9 +6,9 @@ from pathlib import Path
 import httpx
 import pytest
 
-from casefile.clients.llm import LlmClient
-from casefile.config import Settings
-from casefile.predict.extract_run import (
+from consta.clients.llm import LlmClient
+from consta.config import Settings
+from consta.predict.extract_run import (
     _DEFAULT_KINDS,
     collect_items,
     filter_by_kind,
@@ -24,8 +24,8 @@ from casefile.predict.extract_run import (
     strip_json_fence,
     write_merged_output,
 )
-from casefile.predict.extractor import PINNED_EXTRACTOR_MODEL_ID, PINNED_ROUTER_MODEL_ID
-from casefile.predict.extractor import pin_extractor_version
+from consta.predict.extractor import PINNED_EXTRACTOR_MODEL_ID, PINNED_ROUTER_MODEL_ID
+from consta.predict.extractor import pin_extractor_version
 
 
 def test_pinned_extractor_id_is_concrete():
@@ -46,7 +46,7 @@ def test_pinned_id_matches_snapshot():
 
 
 def test_extract_json_object_from_reasoning():
-    from casefile.predict.extract_run import extract_json_object
+    from consta.predict.extract_run import extract_json_object
 
     raw = 'thinking first\n{"intent": "bug", "specificity": 1}\nand more'
     assert json.loads(extract_json_object(raw))["intent"] == "bug"
@@ -399,7 +399,7 @@ def test_main_default_kinds_drops_pull_requests(tmp_path: Path, monkeypatch):
         captured["item_ids"] = [item["item_id"] for item in items]
         return {"total": len(items), "skipped": 0, "wrote": 0, "stopped": None}
 
-    monkeypatch.setattr("casefile.predict.extract_run.run_extract", fake_run)
+    monkeypatch.setattr("consta.predict.extract_run.run_extract", fake_run)
     gold = tmp_path / "gold.yaml"
     gold.write_text(
         "labelled_at: '2026-08-28'\n"

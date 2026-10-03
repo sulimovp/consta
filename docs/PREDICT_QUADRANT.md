@@ -29,7 +29,7 @@ Windows, non-overlapping, defined once and reused by both axes:
 
 ---
 
-## 2. New module — `casefile/predict/topic_history.py`
+## 2. New module — `consta/predict/topic_history.py`
 
 One module computing every input the rollup needs, from the GitHub search and timeline APIs already wrapped in `clients/github.py`.
 
@@ -199,13 +199,13 @@ That line is the difference between a chart and a citation. Do not ship the quad
 | `test_fetch_error_never_imputes_zero` | search raising → field `None` and a `fetch_errors` entry, not `0.0` |
 | `test_quadrant_renders_with_provenance_line` | rendered report contains inflow, R1 n, exclusions, and precision |
 
-**Verify end to end:** `casefile assess -q "…" -r pytorch/pytorch -p torch/masked` prints a quadrant with the provenance line and a score refusal in the same section, and the Apertus run prints two refusals.
+**Verify end to end:** `consta assess -q "…" -r pytorch/pytorch -p torch/masked` prints a quadrant with the provenance line and a score refusal in the same section, and the Apertus run prints two refusals.
 
 ---
 
 ## 6. Cost and order
 
-API calls per assessment, path-scoped: 2 inflow searches, 2 closed-issue searches, up to 100 timelines, up to 300 PR-file lookups, 2 commit calls. The PR-file lookups dominate. With `CASEFILE_GITHUB_TOKEN` at 5000/hr this is comfortable for one report and needs caching before the GitHub Action ships — the existing `cache/github_search.py` should cover the searches; PR files need a small addition.
+API calls per assessment, path-scoped: 2 inflow searches, 2 closed-issue searches, up to 100 timelines, up to 300 PR-file lookups, 2 commit calls. The PR-file lookups dominate. With `CONSTA_GITHUB_TOKEN` at 5000/hr this is comfortable for one report and needs caching before the GitHub Action ships — the existing `cache/github_search.py` should cover the searches; PR files need a small addition.
 
 Order: §1 (signature fix, isolated) → §2 (module + tests against fixtures, no network) → §3 (the hand-check, which is calendar work and should start in parallel because it is the only item that cannot be compressed) → §4 (wiring).
 

@@ -17,7 +17,7 @@ from pathlib import Path
 
 import yaml
 
-from casefile.predict.assignment_score import score_assignment
+from consta.predict.assignment_score import score_assignment
 
 
 def load_labelled(path: Path) -> dict:
@@ -81,7 +81,7 @@ def main() -> int:
     print(f"wilson_precision_95: [{lo:.4f}, {hi:.4f}]")
     print(f"tp={result['tp']} fp={result['fp']} fn={result['fn']} tn={result['tn']}")
     if args.tune:
-        from casefile.predict.assignment_score import fit_assignment_logistic
+        from consta.predict.assignment_score import fit_assignment_logistic
 
         train = [i for i in items if int(i["number"]) % 3 != 0]
         hold = [i for i in items if int(i["number"]) % 3 == 0]

@@ -1,6 +1,6 @@
 [project]
-name = "hitherto"
-version = "0.1.0"
+name = "consta"
+dynamic = ["version"]
 description = "Evidence-first OSS contribution assessment CLI"
 readme = "README.md"
 license = "Apache-2.0"
@@ -25,31 +25,32 @@ web = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/sulimovp/hitherto"
-Repository = "https://github.com/sulimovp/hitherto"
+Homepage = "https://github.com/sulimovp/consta"
+Repository = "https://github.com/sulimovp/consta"
 
 [project.scripts]
-hitherto = "casefile.cli:app"
-hitherto-web = "casefile.web.app:main"
-casefile = "casefile.cli:app"
-casefile-web = "casefile.web.app:main"
+consta = "consta.cli:app"
+consta-web = "consta.web.app:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.version]
+path = "consta/__init__.py"
+
 [tool.hatch.build.targets.wheel]
-packages = ["casefile"]
+packages = ["consta"]
 
 # Profiles and sample cases live at the repo root for curators; ship copies
-# inside the package so `pip install hitherto` works outside a checkout.
+# inside the package so `pip install consta` works outside a checkout.
 [tool.hatch.build.targets.wheel.force-include]
-"profiles" = "casefile/_data/profiles"
-"eval/sample_cases.yaml" = "casefile/_data/sample_cases.yaml"
+"profiles" = "consta/_data/profiles"
+"eval/sample_cases.yaml" = "consta/_data/sample_cases.yaml"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
 markers = [
-    "live: hits real GitHub/LLM APIs (enable with CASEFILE_RUN_LIVE=1)",
+    "live: hits real GitHub/LLM APIs (enable with CONSTA_RUN_LIVE=1)",
 ]

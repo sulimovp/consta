@@ -4,10 +4,10 @@ import time
 
 import pytest
 
-from casefile.models.assessment import AssessmentReport, AssessmentRequest
-from casefile.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
-from casefile.web.app import create_app
-from casefile.web.jobs import get_job
+from consta.models.assessment import AssessmentReport, AssessmentRequest
+from consta.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
+from consta.web.app import create_app
+from consta.web.jobs import get_job
 
 
 @pytest.fixture
@@ -38,7 +38,7 @@ def test_assess_redirects_to_status_and_completes(client, monkeypatch):
         )
 
     monkeypatch.setattr(
-        "casefile.engine.orchestrator.AssessmentEngine.run",
+        "consta.engine.orchestrator.AssessmentEngine.run",
         fake_run,
     )
 

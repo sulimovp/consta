@@ -1,7 +1,7 @@
 """Vital signs + activity forecast scorer."""
 
-from casefile.predict.scorer import forecast_from_vital_metadata
-from casefile.retrievers.vital_signs import VitalSigns, _to_evidence
+from consta.predict.scorer import forecast_from_vital_metadata
+from consta.retrievers.vital_signs import VitalSigns, _to_evidence
 
 
 def test_forecast_active_path():
@@ -104,7 +104,7 @@ def test_vital_signs_evidence_shape():
 
 
 def test_codeowners_requires_path_or_parent_rule():
-    from casefile.retrievers.vital_signs import _codeowners_covers
+    from consta.retrievers.vital_signs import _codeowners_covers
 
     owners = "# owners\n/torch/nn/ @nn-team\ntorch/csrc/*  @core\n"
     assert not _codeowners_covers(owners, "torch/masked")

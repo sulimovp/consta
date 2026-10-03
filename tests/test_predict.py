@@ -6,16 +6,16 @@ import math
 
 import pytest
 
-import casefile.predict as predict_pkg
-from casefile.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
-from casefile.models.profile import EcosystemProfile, HuggingFaceConfig, HuggingFaceHubRepo
-from casefile.predict.extractor import (
+import consta.predict as predict_pkg
+from consta.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
+from consta.models.profile import EcosystemProfile, HuggingFaceConfig, HuggingFaceHubRepo
+from consta.predict.extractor import (
     parse_extracted_json,
     pin_extractor_version,
     validate_evidence_spans,
 )
-from casefile.predict.features import engagement_at_t
-from casefile.predict.labels import (
+from consta.predict.features import engagement_at_t
+from consta.predict.labels import (
     LinkedMergedPR,
     LinkedMergedPRs,
     Outcome,
@@ -23,21 +23,21 @@ from casefile.predict.labels import (
     labels_at_time,
     linked_merged_prs_le,
 )
-from casefile.predict.person_period import (
+from consta.predict.person_period import (
     cumulative_incidence_r1,
     expand_person_period,
     kaplan_meier_complement,
     to_training_row,
 )
-from casefile.predict.quadrant import (
+from consta.predict.quadrant import (
     DemandTrend,
     Quadrant,
     SupplyTrend,
     build_topic_rollup,
     classify_quadrant,
 )
-from casefile.predict.time import MaintainerSet, parse_dt
-from casefile.predict.topic_hazard import (
+from consta.predict.time import MaintainerSet, parse_dt
+from consta.predict.topic_hazard import (
     assess_topic_hazard,
     rollup_refusals,
     score_refusals,
@@ -325,7 +325,7 @@ def test_gap_quadrant_is_demand_rising_supply_falling():
 
 
 def test_binomial_inflow_constant_rate_is_flat():
-    from casefile.predict.quadrant import demand_from_inflow
+    from consta.predict.quadrant import demand_from_inflow
 
     # Equal rates: 6 in 6mo vs 18 in 18mo. Marginal Poisson CIs overlap;
     # the conditional binomial test also stays FLAT.
@@ -341,7 +341,7 @@ def test_binomial_inflow_constant_rate_is_flat():
 
 
 def test_binomial_inflow_rate_ratio_is_rising():
-    from casefile.predict.quadrant import demand_from_inflow
+    from consta.predict.quadrant import demand_from_inflow
 
     assert (
         demand_from_inflow(
@@ -355,7 +355,7 @@ def test_binomial_inflow_rate_ratio_is_rising():
 
 
 def test_inflow_below_min_count_is_unknown():
-    from casefile.predict.quadrant import demand_from_inflow
+    from consta.predict.quadrant import demand_from_inflow
 
     assert (
         demand_from_inflow(

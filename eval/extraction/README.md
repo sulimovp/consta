@@ -1,6 +1,6 @@
 # Block-6 extraction pilots
 
-Runs of `python -m casefile.predict.extract_run` over the existing assignment gold draws.
+Runs of `python -m consta.predict.extract_run` over the existing assignment gold draws.
 No new items were fetched for any of these; the corpus selection criterion is still an open
 Corpus selection criteria are tracked outside this package.
 
@@ -23,7 +23,7 @@ already in the file that are not in the current draw.
 The first spend after PAYG is funded should be a new file, not a resume of the 402 mix:
 
 ```bash
-python -m casefile.predict.extract_run \
+python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/smoke_block6_v3_demand_gpt_oss.jsonl \
   --stratify 20 --seed 0 --kinds issue,hub
@@ -91,8 +91,8 @@ v3 demand-side smoke (issues and Hub; this spends inference). `--limit` over the
 holdout is all PRs for N ≤ 45. Default `--kinds` is `issue,hub`.
 
 ```bash
-cd casefile && set -a; . ./.env; set +a
-python -m casefile.predict.extract_run \
+set -a; . ./.env; set +a
+python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/smoke_block6_v3_demand_gpt_oss.jsonl \
   --stratify 20 --seed 0 --kinds issue,hub
@@ -101,7 +101,7 @@ python -m casefile.predict.extract_run \
 Demand-side v3 fill-rate (112 issue+Hub gold rows; seed from the 20-row smoke to skip those):
 
 ```bash
-python -m casefile.predict.extract_run \
+python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl \
   --kinds issue,hub
@@ -111,7 +111,7 @@ Second extractor, for the agreement study. Run it on v3 after a smoke shows the 
 fill, not against the v2 pilots:
 
 ```bash
-python -m casefile.predict.extract_run \
+python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/secondary_block6_v3_gemma.jsonl \
   --router-model google/gemma-4-31B-it:cerebras \
@@ -122,7 +122,7 @@ python -m casefile.predict.extract_run \
 Agreement (no network, no cost). v3 demand draw:
 
 ```bash
-python -m casefile.predict.agreement \
+python -m consta.predict.agreement \
   --primary eval/extraction/smoke_block6_v3_demand_gpt_oss.jsonl \
   --secondary eval/extraction/secondary_block6_v3_gemma.jsonl \
   --output eval/extraction/agreement_2026-09-01_gpt_oss_x_gemma_v3.json
@@ -131,7 +131,7 @@ python -m casefile.predict.agreement \
 v2 overlap (historical):
 
 ```bash
-python -m casefile.predict.agreement \
+python -m consta.predict.agreement \
   --primary eval/extraction/pilot_2026-08-31_block6_v2_gpt_oss.jsonl \
   --secondary eval/extraction/smoke_block6_v2_gemma.jsonl \
   --output eval/extraction/agreement_2026-08-31_gpt_oss_x_gemma.json

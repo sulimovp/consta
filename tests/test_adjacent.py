@@ -5,12 +5,12 @@ from datetime import date
 import httpx
 import pytest
 
-from casefile.clients import build_clients
-from casefile.config import Settings
-from casefile.models.assessment import AssessmentRequest
-from casefile.models.profile import AdjacentProject, EcosystemProfile
-from casefile.retrievers.adjacent import AdjacentProjectsRetriever
-from casefile.retrievers.base import RetrievalSpec
+from consta.clients import build_clients
+from consta.config import Settings
+from consta.models.assessment import AssessmentRequest
+from consta.models.profile import AdjacentProject, EcosystemProfile
+from consta.retrievers.adjacent import AdjacentProjectsRetriever
+from consta.retrievers.base import RetrievalSpec
 
 _URL = "https://huggingface.co/swiss-ai/Apertus-v1.5-8B"
 _HTML = (
@@ -50,7 +50,7 @@ async def test_adjacent_snippet_is_fetched_page_not_curator_note(httpx_mock):
 
 @pytest.mark.asyncio
 async def test_unfetched_adjacent_is_excluded_not_dropped(httpx_mock):
-    from casefile.engine.validator import validate_evidence
+    from consta.engine.validator import validate_evidence
 
     httpx_mock.add_response(url=_URL, method="HEAD", status_code=403)
     profile = EcosystemProfile(

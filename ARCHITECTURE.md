@@ -1,4 +1,4 @@
-# Casefile — system architecture
+# Consta — system architecture
 
 **Implementation:** standalone Python package.
 
@@ -70,9 +70,9 @@ flowchart LR
 Planned Python 3.11 package. One library; CLI and GitHub App are thin adapters.
 
 ```text
-casefile/
+consta/
   pyproject.toml
-  casefile/
+  consta/
     __init__.py
     cli.py                 # typer: assess, ping, index refresh
     config.py              # env, paths, rate-limit budgets
@@ -242,7 +242,7 @@ Runs **before** synthesis on every `EvidenceItem`:
 | Check | Action on failure |
 |-------|-------------------|
 | URL returns 2xx or valid GitHub API object | drop item; log to `open_questions` |
-| `retrieved_at` within profile `max_age_days` | drop if index stale; suggest `casefile index refresh` |
+| `retrieved_at` within profile `max_age_days` | drop if index stale; suggest `consta index refresh` |
 | Adjacent project: repo or docs URL exists | drop; never pass to synthesizer |
 | Duplicate URL | merge, keep higher score |
 
@@ -273,7 +273,7 @@ If checker fails: strip summary, keep evidence, set `validation_errors`, still w
 
 ## Index and cache
 
-Single-machine SQLite under `~/.cache/casefile/` (override via env).
+Single-machine SQLite under `~/.cache/consta/` (override via env).
 
 | Table | Purpose |
 |-------|---------|
@@ -282,7 +282,7 @@ Single-machine SQLite under `~/.cache/casefile/` (override via env).
 | `fetch_log` | url, fetched_at, status |
 | `embeddings` | optional lancedb path or blob ref |
 
-**Index refresh** (`casefile index refresh --repo pytorch/pytorch`):
+**Index refresh** (`consta index refresh --repo pytorch/pytorch`):
 
 - Incremental GitHub issue/PR sync since last cursor.
 - Respects rate limits; resumes on interrupt.
@@ -311,10 +311,10 @@ Adding JAX = new YAML file, zero engine changes.
 
 ## Delivery adapters
 
-### CLI (`casefile assess`)
+### CLI (`consta assess`)
 
 ```bash
-casefile assess \
+consta assess \
   --question "Should we invest in reviving MaskedTensor?" \
   --repo pytorch/pytorch \
   --path torch/masked \
@@ -377,13 +377,13 @@ Must appear in top results for regression:
 
 | Env var | Purpose |
 |---------|---------|
-| `CASEFILE_GITHUB_TOKEN` | fine-grained PAT, read-only |
-| `CASEFILE_ANTHROPIC_API_KEY` | primary LLM |
-| `CASEFILE_OPENAI_API_KEY` | fallback / embeddings |
-| `CASEFILE_CACHE_DIR` | override index path |
-| `CASEFILE_LLM_PROVIDER` | `anthropic` \| `openai` |
+| `CONSTA_GITHUB_TOKEN` | fine-grained PAT, read-only |
+| `CONSTA_ANTHROPIC_API_KEY` | primary LLM |
+| `CONSTA_OPENAI_API_KEY` | fallback / embeddings |
+| `CONSTA_CACHE_DIR` | override index path |
+| `CONSTA_LLM_PROVIDER` | `anthropic` \| `openai` |
 
-Never commit tokens. `casefile ping` verifies GitHub + LLM connectivity.
+Never commit tokens. `consta ping` verifies GitHub + LLM connectivity.
 
 ---
 

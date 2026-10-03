@@ -2,9 +2,9 @@
 
 import pytest
 
-from casefile.engine.planner import build_plan
-from casefile.eval.sample_cases import load_held_out_cases
-from casefile.models.assessment import AssessmentRequest
+from consta.engine.planner import build_plan
+from consta.eval.sample_cases import load_held_out_cases
+from consta.models.assessment import AssessmentRequest
 
 _RETRIEVER_FOR_KIND = {
     "issue": "github_issues",
@@ -18,7 +18,7 @@ _RETRIEVER_FOR_KIND = {
 
 @pytest.mark.parametrize("case", load_held_out_cases(), ids=lambda c: c.id)
 def test_held_out_plan_includes_expected_retrievers(case, profiles_dir):
-    from casefile.profiles import load_profile
+    from consta.profiles import load_profile
 
     profile = load_profile(profiles_dir, case.ecosystem, allow_stale=True)
     request = AssessmentRequest(
@@ -40,7 +40,7 @@ def test_held_out_plan_includes_expected_retrievers(case, profiles_dir):
 def test_held_out_pinned_issues_in_plan(case, profiles_dir):
     if not case.expect_issue_numbers:
         return
-    from casefile.profiles import load_profile
+    from consta.profiles import load_profile
 
     profile = load_profile(profiles_dir, case.ecosystem, allow_stale=True)
     request = AssessmentRequest(

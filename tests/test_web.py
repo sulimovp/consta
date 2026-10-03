@@ -2,7 +2,7 @@
 
 import pytest
 
-from casefile.web.app import create_app
+from consta.web.app import create_app
 
 
 @pytest.fixture
@@ -40,9 +40,9 @@ def test_sample_cases_listed_on_index(client):
 
 
 def test_summary_html_is_escaped():
-    from casefile.models.assessment import AssessmentReport, AssessmentRequest
-    from casefile.models.evidence import EvidenceBundle
-    from casefile.web.app import _render_result, create_app
+    from consta.models.assessment import AssessmentReport, AssessmentRequest
+    from consta.models.evidence import EvidenceBundle
+    from consta.web.app import _render_result, create_app
 
     report = AssessmentReport(
         request=AssessmentRequest(question="q", repo="o/r"),
@@ -56,7 +56,7 @@ def test_summary_html_is_escaped():
 
 
 def test_every_evidence_kind_has_a_web_label():
-    from casefile.models.evidence import EvidenceKind
-    from casefile.web.app import _WEB_KIND_LABELS
+    from consta.models.evidence import EvidenceKind
+    from consta.web.app import _WEB_KIND_LABELS
 
     assert set(_WEB_KIND_LABELS) == set(EvidenceKind)

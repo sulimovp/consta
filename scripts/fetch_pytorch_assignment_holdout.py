@@ -10,9 +10,9 @@ from pathlib import Path
 import httpx
 import yaml
 
-from casefile.clients.github import GitHubClient
-from casefile.config import get_settings
-from casefile.predict.assignment_score import automatic_assign
+from consta.clients.github import GitHubClient
+from consta.config import get_settings
+from consta.predict.assignment_score import automatic_assign
 
 REPO = "pytorch/pytorch"
 PATH = "torch/masked"
@@ -97,7 +97,7 @@ async def _collect(
 async def main() -> int:
     settings = get_settings()
     if not settings.github_token:
-        print("CASEFILE_GITHUB_TOKEN missing", file=sys.stderr)
+        print("CONSTA_GITHUB_TOKEN missing", file=sys.stderr)
         return 1
     exclude = _known_numbers()
     async with httpx.AsyncClient(timeout=settings.http_timeout) as client:

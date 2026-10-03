@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from casefile.models.assessment import AssessmentReport, AssessmentRequest
-from casefile.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
-from casefile.models.profile import AssignmentPrecision, EcosystemProfile
-from casefile.predict.time import MaintainerSet
-from casefile.predict.topic_hazard import (
+from consta.models.assessment import AssessmentReport, AssessmentRequest
+from consta.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
+from consta.models.profile import AssignmentPrecision, EcosystemProfile
+from consta.predict.time import MaintainerSet
+from consta.predict.topic_hazard import (
     assess_topic_hazard,
     build_topic_provenance,
     topic_hazard_to_dict,
 )
-from casefile.predict.topic_history import (
+from consta.predict.topic_history import (
     compute_topic_history,
     inflow_month_divisors,
     topic_windows,
@@ -48,7 +48,7 @@ def _closed_issue(number: int, **extra) -> dict:
     }
     item.update(extra)
     return item
-from casefile.render.markdown import render_markdown
+from consta.render.markdown import render_markdown
 
 
 def test_inflow_windows_do_not_overlap():
@@ -58,7 +58,7 @@ def test_inflow_windows_do_not_overlap():
     assert recent_start == now - timedelta(days=180)
     assert baseline_start == now - timedelta(days=730)
     # Search queries must not share an inclusive GitHub calendar day.
-    from casefile.predict.topic_history import _nonoverlap_search_bounds
+    from consta.predict.topic_history import _nonoverlap_search_bounds
 
     b0, b1, r0, r1 = _nonoverlap_search_bounds(baseline_start, recent_start, end)
     assert b1 != r0
@@ -328,8 +328,8 @@ async def test_inflow_counts_only_assigned_issues():
 
 @pytest.mark.asyncio
 async def test_topic_first_seen_from_link_last_page(httpx_mock, tmp_path):
-    from casefile.clients.github import GitHubClient
-    from casefile.config import Settings
+    from consta.clients.github import GitHubClient
+    from consta.config import Settings
 
     settings = Settings(
         github_token="t",

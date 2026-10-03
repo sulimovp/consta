@@ -1,12 +1,12 @@
-# Casefile implementation status (August 2026)
+# Consta implementation status (August 2026)
 
-Living snapshot of what is built vs what the Casefile product backlog still tracks as backlog. Checkboxes in `the product backlog` change only when a human confirms acceptance.
+Living snapshot of what is built vs what the Consta product backlog still tracks as backlog. Checkboxes in `the product backlog` change only when a human confirms acceptance.
 
 ## Shipped
 
 | Area | What works |
 |------|------------|
-| **CLI** | `casefile ping`, `list-profiles`, `assess` with `--tier`, `--ecosystem`, `--no-synthesis`, `--json` |
+| **CLI** | `consta ping`, `list-profiles`, `assess` with `--tier`, `--ecosystem`, `--no-synthesis`, `--json` |
 | **Profiles** | Four YAML files: `pytorch`, `numpy`, `sklearn`, `apertus`. Synonyms, pinned issues, path hints, adjacent projects, discourse / Hub. Re-verified 2026-08-30 after the 90-day stamp expired (day 92). Talk week still needs a second pass: 22 October is 53 days after this stamp. |
 | **Retrieval** | GitHub issues/PRs/commits/files; adjacent URL validation plus fetched page text (curator `relevance` is labelled, not quoted; a failed fetch is excluded with a reason, not dropped); Hub discussions; vital signs; dev-discuss pinned + HTML search |
 | **Forecast** | Demand×supply topic rollup from realized outcomes (`## Topic trajectory` with provenance). Inflow and R1 samples are filtered with `automatic_assign` before counting. `vitals-logistic-v0` is not printed. Hazard score remains refused until a trained artifact ships. Assignment precision: PyTorch holdout `n=95`, precision 0.91 (recall omitted as unmeasured); Apertus `n=81`, precision 0.88 / recall 0.64 (recall below 0.80 refuses the rollup). Spec: [`docs/PREDICT.md`](PREDICT.md), wiring brief [`docs/PREDICT_QUADRANT.md`](PREDICT_QUADRANT.md) |
@@ -38,10 +38,10 @@ Live reports regenerated via [`scripts/run_sample_assessments.sh`](../scripts/ru
 | `./scripts/verify.sh` | Every PR / agent "done" | No |
 | Mocked integration (`test_integration`, `test_ecosystems`) | `verify.sh` | No |
 | Held-out plan checks (`test_held_out_eval`) | `verify.sh` | No |
-| Live smoke (`test_live.py`) | `CASEFILE_RUN_LIVE=1` | Yes |
+| Live smoke (`test_live.py`) | `CONSTA_RUN_LIVE=1` | Yes |
 | Sample report regen | `run_sample_assessments.sh` | Yes |
 
-## Phase mapping (the Casefile product backlog)
+## Phase mapping (the Consta product backlog)
 
 | Phase | Status |
 |-------|--------|

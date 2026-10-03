@@ -1,4 +1,4 @@
-from casefile.eval.sample_cases import load_sample_cases
+from consta.eval.sample_cases import load_sample_cases
 
 
 def test_sample_cases_yaml_loads():

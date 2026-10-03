@@ -13,10 +13,10 @@ from pathlib import Path
 
 import httpx
 
-from casefile.clients.github import GitHubClient
-from casefile.clients.huggingface import HuggingFaceClient
-from casefile.config import get_settings
-from casefile.predict.assignment_score import automatic_assign
+from consta.clients.github import GitHubClient
+from consta.clients.huggingface import HuggingFaceClient
+from consta.config import get_settings
+from consta.predict.assignment_score import automatic_assign
 
 TOPIC = "apertus format"
 SYNONYMS = (

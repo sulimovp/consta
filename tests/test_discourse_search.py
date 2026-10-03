@@ -3,13 +3,13 @@
 import httpx
 import pytest
 
-from casefile.clients import build_clients
-from casefile.config import Settings
-from casefile.engine.planner import build_plan
-from casefile.models.assessment import AssessmentRequest
-from casefile.models.profile import DiscourseConfig, EcosystemProfile
-from casefile.retrievers.discourse import DiscourseRetriever
-from casefile.retrievers.base import RetrievalSpec
+from consta.clients import build_clients
+from consta.config import Settings
+from consta.engine.planner import build_plan
+from consta.models.assessment import AssessmentRequest
+from consta.models.profile import DiscourseConfig, EcosystemProfile
+from consta.retrievers.discourse import DiscourseRetriever
+from consta.retrievers.base import RetrievalSpec
 from datetime import date
 
 

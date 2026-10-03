@@ -2,14 +2,14 @@
 
 import pytest
 
-from casefile.engine.planner import build_plan
-from casefile.models.assessment import AssessmentRequest
-from casefile.profiles import list_profiles, load_profile
+from consta.engine.planner import build_plan
+from consta.models.assessment import AssessmentRequest
+from consta.profiles import list_profiles, load_profile
 
 
 @pytest.fixture
 def profiles_dir():
-    from casefile.config import get_settings
+    from consta.config import get_settings
 
     return get_settings().resolved_profiles_dir()
 

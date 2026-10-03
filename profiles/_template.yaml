@@ -1,5 +1,5 @@
 # Ecosystem profile template — copy to {name}.yaml and fill in.
-# Schema: casefile/profiles/schema.yaml (TODO Phase 0.5)
+# Schema: consta/profiles/schema.yaml (TODO Phase 0.5)
 # Loader refuses profiles where last_verified is older than max_age_days.
 
 id: example

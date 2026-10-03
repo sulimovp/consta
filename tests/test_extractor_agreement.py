@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from casefile.predict.agreement import agreement_report, cohen_kappa, ordinal_alpha
+from consta.predict.agreement import agreement_report, cohen_kappa, ordinal_alpha
 
 
 def test_cohen_kappa_perfect_and_chance_adjusted():

@@ -1,4 +1,4 @@
-# Hitherto — contributor notes
+# Consta — contributor notes
 
 Architecture: `ARCHITECTURE.md`. Current implementation snapshot: `docs/STATUS.md`.
 
@@ -7,9 +7,9 @@ Architecture: `ARCHITECTURE.md`. Current implementation snapshot: `docs/STATUS.m
 ```bash
 pip install -e ".[dev,web]"
 ./scripts/verify.sh
-hitherto ping
-hitherto list-profiles
-hitherto-web
+consta ping
+consta list-profiles
+consta-web
 ```
 
 ## Verification

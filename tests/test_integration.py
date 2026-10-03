@@ -5,13 +5,13 @@ import json
 import httpx
 import pytest
 
-from casefile.config import Settings
-from casefile.engine.orchestrator import AssessmentEngine
-from casefile.engine.planner import build_plan
-from casefile.models.assessment import AssessmentRequest
-from casefile.models.profile import DiscourseConfig, EcosystemProfile
-from casefile.profiles import load_profile
-from casefile.render.markdown import render_markdown
+from consta.config import Settings
+from consta.engine.orchestrator import AssessmentEngine
+from consta.engine.planner import build_plan
+from consta.models.assessment import AssessmentRequest
+from consta.models.profile import DiscourseConfig, EcosystemProfile
+from consta.profiles import load_profile
+from consta.render.markdown import render_markdown
 from tests.report_contract import (
     assert_evidence_kinds_present,
     assert_golden_issues_present,
@@ -57,7 +57,7 @@ def pytorch_profile(profiles_dir):
 
 @pytest.fixture
 def profiles_dir():
-    from casefile.config import get_settings
+    from consta.config import get_settings
 
     return get_settings().resolved_profiles_dir()
 
@@ -229,7 +229,7 @@ async def test_assess_with_synthesis_mocked(pytorch_profile, httpx_mock, masked_
         )
 
     monkeypatch.setattr(
-        "casefile.clients.llm.LlmClient.complete",
+        "consta.clients.llm.LlmClient.complete",
         _fake_complete,
     )
 

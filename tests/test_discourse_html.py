@@ -1,4 +1,4 @@
-from casefile.clients.discourse_html import extract_discourse_topic_urls
+from consta.clients.discourse_html import extract_discourse_topic_urls
 
 
 def test_extract_topic_urls_from_search_html():

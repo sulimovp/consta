@@ -5,13 +5,13 @@ from datetime import date
 import httpx
 import pytest
 
-from casefile.clients import build_clients
-from casefile.clients.http import HttpClient
-from casefile.config import Settings
-from casefile.models.assessment import AssessmentRequest
-from casefile.models.profile import DiscourseConfig, EcosystemProfile
-from casefile.retrievers.base import RetrievalSpec
-from casefile.retrievers.discourse import DiscourseRetriever
+from consta.clients import build_clients
+from consta.clients.http import HttpClient
+from consta.config import Settings
+from consta.models.assessment import AssessmentRequest
+from consta.models.profile import DiscourseConfig, EcosystemProfile
+from consta.retrievers.base import RetrievalSpec
+from consta.retrievers.discourse import DiscourseRetriever
 
 _THREAD_URL = "https://dev-discuss.example.com/t/masked-tensor-rfc/42"
 _THREAD_HTML = (
