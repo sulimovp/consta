@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import re
 import time
 
 import httpx
@@ -35,7 +37,7 @@ class GitHubClient:
                 response = await self._client.get(
                     url, headers=self._headers(), params=params
                 )
-            if response.status_code not in _RETRY_STATUS:
+            if response.status_code not in _RETRY_STATUS or not _is_retryable(response):
                 response.raise_for_status()
                 return response.json()
             last_exc = httpx.HTTPStatusError(
@@ -43,6 +45,8 @@ class GitHubClient:
                 request=response.request,
                 response=response,
             )
+            if attempt == _MAX_RETRIES - 1:
+                break
             wait = min(2**attempt, 8)
             retry_after = response.headers.get("Retry-After") or response.headers.get(
                 "retry-after"
@@ -98,8 +102,6 @@ class GitHubClient:
             raise
         if not isinstance(data, dict):
             return None
-        import base64
-
         encoding = data.get("encoding")
         content = data.get("content")
         if encoding == "base64" and isinstance(content, str):
@@ -296,8 +298,15 @@ class GitHubClient:
         return all_reactions
 
 
-import re as _re
+def _is_retryable(response: httpx.Response) -> bool:
+    """403 is only transient when GitHub says it is a rate limit; otherwise it is a permission error."""
+    if response.status_code != 403:
+        return True
+    if response.headers.get("retry-after") or response.headers.get("x-ratelimit-remaining") == "0":
+        return True
+    return "rate limit" in response.text.lower()
+
 
 def _parse_last_page(link_header: str) -> int | None:
-    match = _re.search(r'[?&]page=(\d+)[^>]*>;\s*rel="last"', link_header)
+    match = re.search(r'[?&]page=(\d+)[^>]*>;\s*rel="last"', link_header)
     return int(match.group(1)) if match else None

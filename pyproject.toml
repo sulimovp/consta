@@ -41,6 +41,12 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["casefile"]
 
+# Profiles and sample cases live at the repo root for curators; ship copies
+# inside the package so `pip install hitherto` works outside a checkout.
+[tool.hatch.build.targets.wheel.force-include]
+"profiles" = "casefile/_data/profiles"
+"eval/sample_cases.yaml" = "casefile/_data/sample_cases.yaml"
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]

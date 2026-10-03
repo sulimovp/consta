@@ -21,6 +21,8 @@ class JobRecord:
     error: str | None = None
 
 
+_MAX_JOBS = 200
+
 _lock = threading.Lock()
 _jobs: dict[str, JobRecord] = {}
 
@@ -38,6 +40,11 @@ def start_job(run_fn: JobRunner) -> str:
                 _jobs[job_id] = JobRecord(status="error", error=str(exc))
 
     with _lock:
+        # Dicts keep insertion order: drop the oldest finished jobs past the cap.
+        for old_id in [k for k, v in _jobs.items() if v.status != "pending"][
+            : max(0, len(_jobs) - _MAX_JOBS + 1)
+        ]:
+            del _jobs[old_id]
         _jobs[job_id] = JobRecord(status="pending")
     threading.Thread(target=runner, daemon=True).start()
     return job_id

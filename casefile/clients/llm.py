@@ -12,12 +12,7 @@ class LlmClient:
 
     @property
     def available(self) -> bool:
-        provider = self._settings.llm_provider
-        if provider == "openai":
-            return bool(self._settings.openai_api_key)
-        if provider == "huggingface":
-            return bool(self._settings.hf_token)
-        return bool(self._settings.anthropic_api_key)
+        return self._settings.llm_configured()
 
     async def ping(self) -> str:
         provider = self._settings.llm_provider
@@ -27,7 +22,7 @@ class LlmClient:
             return await self._complete_huggingface(
                 "You are a ping probe.",
                 "Reply with exactly: pong",
-                max_tokens=16,
+                max_tokens=512,  # reasoning models think before answering
             )
         return await self._ping_anthropic()
 
@@ -179,12 +174,7 @@ def _openai_content(data: dict) -> str:
     if choices and isinstance(choices[0], dict):
         message = choices[0].get("message", {})
         if isinstance(message, dict):
-            content = message.get("content")
-            if content:
-                return str(content)
-            # Some HF router models (e.g. gpt-oss) put the answer in reasoning
-            # when content is empty or truncated.
-            reasoning = message.get("reasoning")
-            if reasoning:
-                return str(reasoning)
+            # Never fall back to `reasoning`: chain of thought is not an answer
+            # and must not reach a report.
+            return str(message.get("content") or "")
     return ""

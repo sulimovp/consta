@@ -30,6 +30,8 @@ def check_citations(
 
     errors: list[str] = []
     refs_in_text = {int(m.group(1)) for m in _REF_RE.finditer(summary)}
+    if not refs_in_text:
+        return ["Summary has no [n] citations; uncited synthesis is not shown."]
 
     for num in sorted(refs_in_text):
         evidence_id = citation_map.get(num)

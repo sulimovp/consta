@@ -8,7 +8,9 @@ from typing import Any
 
 import yaml
 
-_DEFAULT_PATH = Path(__file__).resolve().parents[2] / "eval" / "sample_cases.yaml"
+from casefile.config import data_path
+
+_DEFAULT_PATH = data_path("eval/sample_cases.yaml", "sample_cases.yaml")
 
 
 @dataclass(frozen=True)

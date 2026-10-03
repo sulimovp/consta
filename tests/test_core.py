@@ -393,3 +393,125 @@ def test_validator_excludes_project_name_only_issues(pytorch_profile):
 def test_profile_expanded_terms(pytorch_profile):
     terms = pytorch_profile.expanded_terms("work on masked tensor support")
     assert "MaskedTensor" in terms
+
+
+@pytest.mark.asyncio
+async def test_pinned_query_keeps_only_exact_issue(httpx_mock, tmp_path):
+    import httpx as _httpx
+
+    from casefile.clients import build_clients
+    from casefile.config import Settings
+    from casefile.retrievers.base import RetrievalSpec
+    from casefile.retrievers.github_issues import GitHubIssuesRetriever
+
+    httpx_mock.add_response(
+        json={
+            "total_count": 2,
+            "items": [
+                {"number": 5, "title": "Mentions 89734 in passing", "html_url": "https://github.com/o/r/issues/5"},
+                {"number": 89734, "title": "The pinned one", "html_url": "https://github.com/o/r/issues/89734"},
+            ],
+        }
+    )
+    request = AssessmentRequest(question="q", repo="o/r", synthesize=False)
+    async with _httpx.AsyncClient() as client:
+        clients = build_clients(Settings(github_token="t", cache_dir=tmp_path), client)
+        items = await GitHubIssuesRetriever().fetch(
+            RetrievalSpec(retriever="github_issues", queries=["repo:o/r is:issue 89734"]),
+            request,
+            None,
+            clients,
+        )
+    assert [i.id for i in items] == ["issue-89734"]
+    assert items[0].metadata["pinned"] is True
+
+
+def test_uncited_summary_is_rejected():
+    errors = check_citations("Looks like a great idea, go for it.", {}, {"issue-1"})
+    assert errors and "no [n] citations" in errors[0]
+
+
+def test_non_numeric_citation_keys_are_ignored():
+    raw = '{"paragraphs": "x \\"t\\" [1]", "citations": {"1": "issue-1", "one": "issue-2"}}'
+    _, citation_map, _ = _parse_synthesis(raw, {1: "issue-1"})
+    assert citation_map == {1: "issue-1"}
+
+
+@pytest.mark.asyncio
+async def test_llm_failure_keeps_evidence(monkeypatch, tmp_path):
+    from casefile.engine import orchestrator
+    from casefile.engine.orchestrator import AssessmentEngine
+    from casefile.config import Settings
+
+    item = EvidenceItem(
+        id="issue-1",
+        kind=EvidenceKind.ISSUE,
+        title="t",
+        url="https://github.com/o/r/issues/1",
+        snippet="s",
+        source_retriever="test",
+    )
+
+    async def fake_retrieve(self, request, profile, plan, clients):
+        return EvidenceBundle(items=[item])
+
+    async def boom(*args, **kwargs):
+        raise RuntimeError("401 from provider")
+
+    monkeypatch.setattr(AssessmentEngine, "_retrieve", fake_retrieve)
+    monkeypatch.setattr(orchestrator, "synthesize", boom)
+    engine = AssessmentEngine(
+        Settings(openai_api_key="k", llm_provider="openai", cache_dir=tmp_path)
+    )
+    report = await engine.run(AssessmentRequest(question="q", repo="o/r"), None)
+    assert report.summary is None
+    assert [i.id for i in report.evidence.items] == ["issue-1"]
+    assert any("Synthesis failed" in e for e in report.validation_errors)
+
+
+def test_display_summary_escapes_markdown_inside_quotes_only():
+    from casefile.render.markdown import display_summary
+
+    out = display_summary('"`masked_fill` fails" [2] then `code`')
+    assert out == '"\\`masked\\_fill\\` fails" [2] then `code`'
+
+
+@pytest.mark.asyncio
+async def test_retriever_failure_goes_to_diagnostics(monkeypatch, tmp_path):
+    from casefile.config import Settings
+    from casefile.engine import orchestrator
+    from casefile.engine.orchestrator import AssessmentEngine
+    from casefile.retrievers.base import RetrievalSpec
+
+    class Broken:
+        name = "github_issues"
+        tier = 1
+
+        def plan(self, request, profile, plan):
+            return RetrievalSpec(retriever=self.name)
+
+        async def fetch(self, spec, request, profile, clients):
+            raise RuntimeError("HTTP 502 from GitHub")
+
+    monkeypatch.setattr(orchestrator, "ALL_RETRIEVERS", [Broken()])
+    engine = AssessmentEngine(Settings(cache_dir=tmp_path))
+    report = await engine.run(
+        AssessmentRequest(question="q", repo="o/r", synthesize=False), None
+    )
+    assert report.evidence.diagnostics == ["github_issues failed: HTTP 502 from GitHub"]
+    assert not any("502" in q for q in report.evidence.open_questions)
+    assert any("GitHub issues" in q for q in report.evidence.open_questions)
+    md = render_markdown(report)
+    assert "## Diagnostics" in md
+
+
+def test_skip_reason_explains_withheld_summary():
+    from casefile.models.assessment import AssessmentReport
+    from casefile.render.markdown import render_markdown as render
+
+    report = AssessmentReport(
+        request=AssessmentRequest(question="q", repo="o/r"),
+        evidence=EvidenceBundle(),
+        validation_errors=["Citation [1] quote 'x' not found in cited item 'issue-1'"],
+    )
+    assert "citations did not check out" in render(report)

@@ -38,9 +38,6 @@ def validate_evidence(
     request: AssessmentRequest | None = None,
 ) -> tuple[list[EvidenceItem], list[EvidenceItem]]:
     """Filter evidence. Returns (kept, excluded) — excluded items carry exclusion_reason."""
-    if profile is not None and profile.is_stale():
-        pass
-
     path = request.path if request else None
     question = request.question if request else ""
     repo = request.repo if request else None

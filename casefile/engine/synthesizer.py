@@ -18,6 +18,9 @@ Rules:
 - If evidence is insufficient, say so in paragraphs and open_questions. Do not guess."""
 
 _SYNTHESIS_LIMIT = 25
+# Reasoning models (gpt-oss on the HF router) spend most of the budget thinking;
+# a tight cap truncates the JSON and the whole synthesis is lost.
+_MAX_TOKENS = 8000
 
 
 async def synthesize(
@@ -40,7 +43,7 @@ async def synthesize(
         f"Repository: {request.repo}\n\n"
         f"Evidence:\n{evidence_block}"
     )
-    raw = await llm.complete(_SYSTEM, user, max_tokens=2200)
+    raw = await llm.complete(_SYSTEM, user, max_tokens=_MAX_TOKENS)
     paragraphs, citation_map, open_questions = _parse_synthesis(raw, id_by_num)
 
     items_by_id = {item.id: item for item in items[:_SYNTHESIS_LIMIT]}
@@ -64,9 +67,17 @@ async def synthesize(
             "Every claim needs a ≤15-word verbatim quote from that item's title or "
             "snippet immediately before [n]."
         )
-        raw2 = await llm.complete(_SYSTEM, repair_user, max_tokens=2200)
+        raw2 = await llm.complete(_SYSTEM, repair_user, max_tokens=_MAX_TOKENS)
         paragraphs2, citation_map2, open_questions2 = _parse_synthesis(raw2, id_by_num)
-        if paragraphs2:
+        errors2 = check_citations(
+            paragraphs2,
+            citation_map2,
+            set(id_by_num.values()),
+            id_by_num=id_by_num,
+            items_by_id=items_by_id,
+        )
+        # Only take the repair if it is actually better; a truncated retry must not win.
+        if paragraphs2 and len(errors2) < len(errors):
             paragraphs, citation_map, open_questions = (
                 paragraphs2,
                 citation_map2,
@@ -91,7 +102,10 @@ def _parse_synthesis(
         citation_map: dict[int, str] = {}
         if isinstance(citations_raw, dict):
             for key, value in citations_raw.items():
-                num = int(key)
+                try:
+                    num = int(str(key).strip("[] "))
+                except ValueError:
+                    continue
                 # Keep the model's claimed id (after light normalization). Do NOT
                 # rewrite it to id_by_num[num] — disagreement is a checker error.
                 citation_map[num] = _normalize_evidence_id(str(value), id_by_num)

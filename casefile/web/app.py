@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import html
 import os
 from pathlib import Path
 
@@ -14,8 +15,9 @@ from casefile.config import get_settings
 from casefile.engine.orchestrator import AssessmentEngine
 from casefile.eval.sample_cases import load_sample_cases
 from casefile.models.assessment import AssessmentRequest
+from casefile.models.evidence import EvidenceKind
 from casefile.profiles import ProfileNotFoundError, ProfileStaleError, list_profiles, load_profile
-from casefile.render.markdown import render_markdown
+from casefile.render.markdown import display_summary, render_markdown, synthesis_skip_reason
 from casefile.web.jobs import get_job, start_async_assessment
 
 
@@ -39,7 +41,7 @@ def create_app() -> Flask:
             "profiles": _list_profile_names(),
             "presets": _presets(),
             "github_configured": bool(settings.github_token),
-            "llm_configured": _llm_configured(settings),
+            "llm_configured": settings.llm_configured(),
             "llm_provider": settings.llm_provider,
         }
 
@@ -83,7 +85,7 @@ def create_app() -> Flask:
 
         settings = get_settings()
         if not settings.github_token:
-            flash("Set CASEFILE_GITHUB_TOKEN in casefile/.env before running assessments.", "warning")
+            flash("Set CASEFILE_GITHUB_TOKEN in .env before running assessments.", "warning")
 
         profile = None
         if ecosystem:
@@ -133,13 +135,16 @@ def _render_result(report):
     md = render_markdown(report)
     summary_html = None
     if report.summary:
-        summary_html = Markup(markdown(report.summary, extensions=["extra"]))
+        # LLM output can echo attacker-written issue text; never pass raw HTML through.
+        escaped = html.escape(display_summary(report.summary), quote=False)
+        summary_html = Markup(markdown(escaped, extensions=["extra"]))
     return render_template(
         "result.html",
         report=report,
         markdown_raw=md,
         summary_html=summary_html,
         evidence_by_kind=_group_evidence(report),
+        skip_reason=synthesis_skip_reason(report),
     )
 
 
@@ -148,12 +153,6 @@ def _list_profile_names() -> list[str]:
         return list_profiles(get_settings().resolved_profiles_dir())
     except Exception:  # noqa: BLE001
         return []
-
-
-def _llm_configured(settings) -> bool:
-    if settings.llm_provider == "openai":
-        return bool(settings.openai_api_key)
-    return bool(settings.anthropic_api_key)
 
 
 def _connectivity_status() -> dict[str, str]:
@@ -168,7 +167,7 @@ def _connectivity_status() -> dict[str, str]:
         except Exception as exc:  # noqa: BLE001
             out["github"] = f"error: {exc}"
 
-    if not _llm_configured(settings):
+    if not settings.llm_configured():
         out["llm"] = "not configured"
     else:
         try:
@@ -197,21 +196,25 @@ async def _ping_llm(settings) -> None:
         await build_clients(settings, client).llm.ping()
 
 
-def _group_evidence(report) -> list[tuple[str, list]]:
-    from casefile.models.evidence import EvidenceKind
+_WEB_KIND_LABELS = {
+    EvidenceKind.ISSUE: "Issues",
+    EvidenceKind.ISSUE_COMMENT: "Issue comments",
+    EvidenceKind.PULL_REQUEST: "Merged PRs",
+    EvidenceKind.COMMIT: "Module activity",
+    EvidenceKind.VITAL_SIGNS: "Module vital signs",
+    EvidenceKind.FILE: "Repository files",
+    EvidenceKind.DISCOURSE_THREAD: "Dev-discuss",
+    EvidenceKind.HF_DISCUSSION: "Hugging Face discussions",
+    EvidenceKind.RELEASE: "Releases",
+    EvidenceKind.ADJACENT_PROJECT: "Adjacent projects",
+    EvidenceKind.PROCESS_DOC: "Process / RFC",
+}
 
-    headings = {
-        EvidenceKind.ISSUE: "Issues",
-        EvidenceKind.PULL_REQUEST: "Merged PRs",
-        EvidenceKind.COMMIT: "Module activity",
-        EvidenceKind.FILE: "Repository files",
-        EvidenceKind.DISCOURSE_THREAD: "Dev-discuss",
-        EvidenceKind.ADJACENT_PROJECT: "Adjacent projects",
-        EvidenceKind.PROCESS_DOC: "Process / RFC",
-    }
+
+def _group_evidence(report) -> list[tuple[str, list]]:
     buckets: dict[str, list] = {}
     for item in report.evidence.items:
-        label = headings.get(item.kind, item.kind.value)
+        label = _WEB_KIND_LABELS.get(item.kind, item.kind.value)
         buckets.setdefault(label, []).append(item)
     return list(buckets.items())
 

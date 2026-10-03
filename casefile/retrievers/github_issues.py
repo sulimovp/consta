@@ -1,6 +1,8 @@
 import asyncio
 import re
 
+import httpx
+
 from casefile.clients import ClientBundle
 from casefile.models.assessment import AssessmentRequest
 from casefile.models.evidence import EvidenceItem, EvidenceKind
@@ -35,7 +37,13 @@ class GitHubIssuesRetriever:
         for query in spec.queries:
             await asyncio.sleep(0.4)
             results = await clients.github.search_issues(query, per_page=20)
-            is_pinned_query = bool(self._PINNED_QUERY.search(query))
+            pinned_match = self._PINNED_QUERY.search(query)
+            is_pinned_query = pinned_match is not None
+            if pinned_match:
+                # Search treats the number as free text; only the exact issue is pinned.
+                results = await _exact_issue(
+                    clients, request.repo, int(pinned_match.group(1)), results
+                )
             is_label_query = "label:" in query
             is_catch_all = bool(re.fullmatch(r"repo:\S+ is:issue", query.strip()))
             for rank, issue in enumerate(results):
@@ -80,3 +88,16 @@ class GitHubIssuesRetriever:
                 if prev is None or item.relevance_score > prev.relevance_score:
                     by_number[number] = item
         return sorted(by_number.values(), key=lambda i: i.relevance_score, reverse=True)
+
+
+async def _exact_issue(
+    clients: ClientBundle, repo: str, number: int, results: list[dict]
+) -> list[dict]:
+    hits = [issue for issue in results if issue.get("number") == number]
+    if hits:
+        return hits
+    try:
+        issue = await clients.github.get_json(f"/repos/{repo}/issues/{number}")
+    except httpx.HTTPStatusError:
+        return []
+    return [issue] if isinstance(issue, dict) and issue.get("number") == number else []

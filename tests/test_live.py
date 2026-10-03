@@ -1,4 +1,4 @@
-"""Optional live API smoke test — set CASEFILE_RUN_LIVE=1 and configure casefile/.env."""
+"""Optional live API smoke test — set CASEFILE_RUN_LIVE=1 and configure .env."""
 
 import os
 from pathlib import Path
@@ -39,7 +39,7 @@ def live_settings():
 
 @pytest.mark.asyncio
 async def test_live_torch_masked_assessment(live_settings, profiles_dir):
-    if not live_settings.openai_api_key and not live_settings.anthropic_api_key:
+    if not live_settings.llm_configured():
         pytest.skip("No LLM API key for synthesis")
 
     profile = load_profile(profiles_dir, "pytorch", allow_stale=True)

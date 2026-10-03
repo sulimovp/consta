@@ -31,7 +31,13 @@
   <div class="card-body summary-body">{{ summary_html }}</div>
 </section>
 {% elif report.request.synthesize %}
-<div class="alert alert-secondary">Synthesis was skipped (no LLM key or validation failure).</div>
+<div class="alert alert-secondary">Synthesis skipped: {{ skip_reason }}
+  {% if report.validation_errors %}
+  <details class="mt-2 small"><summary>Why</summary>
+    <ul class="mb-0">{% for e in report.validation_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+</div>
 {% endif %}
 
 {% if report.evidence.open_questions %}
@@ -43,6 +49,15 @@
     {% endfor %}
   </ul>
 </section>
+{% endif %}
+
+{% if report.evidence.diagnostics %}
+<details class="mb-4 small text-muted">
+  <summary>Diagnostics ({{ report.evidence.diagnostics | length }}) — pipeline notes, useful when reporting a problem</summary>
+  <ul class="mt-2">
+    {% for d in report.evidence.diagnostics %}<li>{{ d }}</li>{% endfor %}
+  </ul>
+</details>
 {% endif %}
 
 <section class="mb-4">

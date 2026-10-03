@@ -203,20 +203,20 @@ async def compute_vital_signs(
     )
 
     try:
+        codeowners_path = ".github/CODEOWNERS"
         codeowners = await clients.github.get_file_content(
-            request.owner, request.name, ".github/CODEOWNERS"
+            request.owner, request.name, codeowners_path
         )
         if codeowners is None:
+            codeowners_path = "CODEOWNERS"
             codeowners = await clients.github.get_file_content(
-                request.owner, request.name, "CODEOWNERS"
+                request.owner, request.name, codeowners_path
             )
         signs.has_codeowners = codeowners is not None
         if codeowners is not None:
-            signs.codeowners_mentions_path = (
-                path in codeowners or path.split("/")[0] in codeowners
-            )
+            signs.codeowners_mentions_path = _codeowners_covers(codeowners, path)
             signs.evidence_urls["codeowners"] = (
-                f"https://github.com/{request.repo}/blob/main/.github/CODEOWNERS"
+                f"https://github.com/{request.repo}/blob/HEAD/{codeowners_path}"
             )
     except httpx.HTTPError as exc:
         signs.fetch_errors.append(f"CODEOWNERS fetch failed: {exc}")
@@ -246,6 +246,23 @@ def _to_evidence(signs: VitalSigns, repo: str) -> EvidenceItem:
         relevance_score=0.92,
         metadata=signs.to_metadata(),
     )
+
+
+def _codeowners_covers(codeowners: str, path: str) -> bool:
+    """True if a CODEOWNERS pattern names this path or one of its parent directories.
+
+    Matching the top-level segment alone ("torch" for torch/masked) is true for
+    nearly every rule in a monorepo and says nothing about ownership of the path.
+    """
+    target = path.strip("/")
+    for line in codeowners.splitlines():
+        pattern = line.split("#", 1)[0].split()
+        if not pattern:
+            continue
+        rule = pattern[0].strip("/").rstrip("*").rstrip("/")
+        if rule and (target == rule or target.startswith(rule + "/") or rule.startswith(target + "/")):
+            return True
+    return False
 
 
 def _parse_dt(value: str | None) -> datetime | None:

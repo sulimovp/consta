@@ -29,7 +29,7 @@ class GitActivityRetriever:
     ) -> list[EvidenceItem]:
         items: list[EvidenceItem] = []
         for path in spec.paths:
-            commits, _truncated = await clients.github.list_commits(
+            commits, truncated = await clients.github.list_commits(
                 request.owner, request.name, path=path, per_page=30
             )
             if not commits:
@@ -48,7 +48,7 @@ class GitActivityRetriever:
                     authors[login] = authors.get(login, 0) + 1
             top = sorted(authors.items(), key=lambda x: x[1], reverse=True)[:3]
             snippet = (
-                f"Path `{path}`: {len(commits)} commits fetched (page cap 30). "
+                f"Path `{path}`: {len(commits)} commits fetched{' (truncated)' if truncated else ''}. "
                 f"Latest: {sha} on {date_str}. Top committers: {', '.join(a for a, _ in top) or 'unknown'}."
             )
             html_url = latest.get("html_url") or f"https://github.com/{request.repo}/commits/{path}"

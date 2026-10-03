@@ -101,3 +101,13 @@ def test_vital_signs_evidence_shape():
     assert item.kind.value == "vital_signs"
     assert item.metadata["commits_12m"] == 5
     assert "top_committer_active_on_path_6m" in item.metadata
+
+
+def test_codeowners_requires_path_or_parent_rule():
+    from casefile.retrievers.vital_signs import _codeowners_covers
+
+    owners = "# owners\n/torch/nn/ @nn-team\ntorch/csrc/*  @core\n"
+    assert not _codeowners_covers(owners, "torch/masked")
+    assert _codeowners_covers(owners, "torch/nn/modules")
+    assert _codeowners_covers("/torch/masked/ @a\n", "torch/masked")
+    assert _codeowners_covers("/torch/masked/maskedtensor @a\n", "torch/masked")

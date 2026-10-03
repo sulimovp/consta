@@ -1,6 +1,4 @@
-# Public-repo CI. Copy to the new repo root as `.github/workflows/ci.yml`
-# when splitting (see docs/SPLIT.md). Working directory is the package root.
-name: Casefile tests
+name: Tests
 
 on:
   push:
@@ -14,14 +12,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install casefile
+      - name: Install
         run: pip install -e ".[dev,web]"
       - name: Mandatory verify script
         run: bash scripts/verify.sh
-      - name: Doc link check
+      - name: Wheel ships profiles and sample cases
         run: |
-          if [ -f scripts/check_agent_docs.py ]; then
-            python scripts/check_agent_docs.py
-          else
-            echo "SKIP check_agent_docs.py (workspace-only helper)"
-          fi
+          pip install build
+          python -m build --wheel -o dist
+          python -m venv /tmp/wheel-venv
+          /tmp/wheel-venv/bin/pip install dist/*.whl
+          cd /tmp && /tmp/wheel-venv/bin/hitherto list-profiles | grep -qx pytorch
+          /tmp/wheel-venv/bin/python -c "from casefile.eval.sample_cases import load_sample_cases; assert load_sample_cases()"

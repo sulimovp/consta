@@ -1,3 +1,4 @@
+import re
 from datetime import UTC, datetime
 
 from casefile.models.assessment import AssessmentReport
@@ -17,6 +18,34 @@ _KIND_HEADINGS: dict[EvidenceKind, str] = {
 }
 
 
+# A quoted span right before a citation marker: `"verbatim text" [n]`.
+_QUOTED_SPAN_RE = re.compile(r'"([^"\n]{1,240})"(?=\s*\[\d+\])')
+_MD_SPECIALS_RE = re.compile(r"([`*_])")
+
+
+def display_summary(summary: str) -> str:
+    """Escape markdown syntax inside verbatim quotes so they render as written.
+
+    Quotes are copied from issue titles, which often contain backticks or
+    snake_case names; unescaped they pair up across quotes and garble the text.
+    Citation checks run on the raw summary, never on this display form.
+    """
+    return _QUOTED_SPAN_RE.sub(
+        lambda m: '"' + _MD_SPECIALS_RE.sub(r"\\\1", m.group(1)) + '"', summary
+    )
+
+
+def synthesis_skip_reason(report: AssessmentReport) -> str:
+    errors = report.validation_errors
+    if any(e.startswith("Synthesis failed") for e in errors):
+        return "the LLM request failed (see Validation errors)."
+    if errors:
+        return "the model's summary was withheld because its citations did not check out against the evidence."
+    if not report.evidence.items:
+        return "no evidence was retrieved to summarize."
+    return "no LLM API key is configured for the selected provider."
+
+
 def render_markdown(report: AssessmentReport) -> str:
     req = report.request
     ev = report.evidence
@@ -34,7 +63,7 @@ def render_markdown(report: AssessmentReport) -> str:
             [
                 "## Summary (model synthesis — verify citations below)",
                 "",
-                report.summary,
+                display_summary(report.summary),
                 "",
             ]
         )
@@ -43,7 +72,7 @@ def render_markdown(report: AssessmentReport) -> str:
             [
                 "## Summary",
                 "",
-                "_Synthesis skipped (no LLM key, validation failure, or empty evidence)._",
+                f"_Synthesis skipped: {synthesis_skip_reason(report)}_",
                 "",
             ]
         )
@@ -112,6 +141,11 @@ def render_markdown(report: AssessmentReport) -> str:
     else:
         lines.append("- _None recorded._")
     lines.append("")
+
+    if ev.diagnostics:
+        lines.extend(["## Diagnostics", "", "_Pipeline notes; useful when reporting a problem._", ""])
+        lines.extend(f"- {d}" for d in ev.diagnostics)
+        lines.append("")
 
     if report.validation_errors:
         lines.extend(["## Validation errors", ""])

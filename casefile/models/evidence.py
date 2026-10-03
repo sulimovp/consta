@@ -35,6 +35,8 @@ class EvidenceBundle(BaseModel):
     items: list[EvidenceItem] = Field(default_factory=list)
     excluded: list[EvidenceItem] = Field(default_factory=list)
     open_questions: list[str] = Field(default_factory=list)
+    # Pipeline notes for maintainers of this tool (fetch errors, refusals) — not user questions.
+    diagnostics: list[str] = Field(default_factory=list)
     freshness: datetime | None = None
     retrieval_stats: dict[str, Any] = Field(default_factory=dict)
 

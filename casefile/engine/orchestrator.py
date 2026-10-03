@@ -22,6 +22,19 @@ from casefile.retrievers import ALL_RETRIEVERS
 from casefile.retrievers.base import RetrievalPlan
 
 
+_SOURCE_NAMES = {
+    "github_issues": "GitHub issues",
+    "github_prs": "merged PRs",
+    "repo_files": "repository files",
+    "git_activity": "commit history",
+    "vital_signs": "module vital signs",
+    "adjacent_projects": "adjacent projects",
+    "process_docs": "process docs",
+    "discourse": "forum threads",
+    "huggingface_discussions": "Hugging Face discussions",
+}
+
+
 class AssessmentEngine:
     def __init__(self, settings: Settings | None = None) -> None:
         self._settings = settings or get_settings()
@@ -61,7 +74,6 @@ class AssessmentEngine:
             summary: str | None = None
             citation_map: dict[int, str] = {}
             validation_errors: list[str] = []
-            activity_forecast = None
             now = datetime.now(UTC)
             history = await _path_topic_history(
                 clients, request.repo, plan.resolved_path, now, bundle, profile
@@ -75,14 +87,18 @@ class AssessmentEngine:
             )
 
             if request.synthesize and clients.llm.available and bundle.items:
-                summary, citation_map, llm_questions, id_by_num = await synthesize(
-                    request, bundle.items, clients.llm
-                )
+                try:
+                    summary, citation_map, llm_questions, id_by_num = await synthesize(
+                        request, bundle.items, clients.llm
+                    )
+                except Exception as exc:  # noqa: BLE001 — evidence survives an LLM outage
+                    summary, citation_map, llm_questions, id_by_num = None, {}, [], {}
+                    validation_errors = [f"Synthesis failed: {exc}"]
                 for q in llm_questions:
                     if q not in bundle.open_questions:
                         bundle.open_questions.append(q)
                 items_by_id = {item.id: item for item in bundle.items}
-                validation_errors = check_citations(
+                validation_errors += check_citations(
                     summary,
                     citation_map,
                     bundle.evidence_ids(),
@@ -98,7 +114,6 @@ class AssessmentEngine:
                 summary=summary,
                 citation_map=citation_map,
                 validation_errors=validation_errors,
-                activity_forecast=activity_forecast,
                 topic_forecast=topic_forecast,
             )
         finally:
@@ -122,12 +137,20 @@ class AssessmentEngine:
             try:
                 return await retriever.fetch(spec, request, profile, clients)
             except Exception as exc:  # noqa: BLE001 — collect per-retriever failures
-                bundle.open_questions.append(f"{retriever.name} failed: {exc}")
+                bundle.diagnostics.append(f"{retriever.name} failed: {exc}")
+                failed.append(retriever.name)
                 return []
 
+        failed: list[str] = []
         results = await asyncio.gather(*(run_one(r) for r in active))
         for chunk in results:
             bundle.items.extend(chunk)
+        if failed:
+            names = ", ".join(_SOURCE_NAMES.get(n, n) for n in sorted(failed))
+            bundle.open_questions.append(
+                f"Some sources could not be fetched ({names}), so this report may be missing "
+                "evidence. Re-run later or check the Diagnostics section."
+            )
         return bundle
 
 
@@ -161,13 +184,13 @@ async def _path_topic_history(
         )
     except Exception as exc:  # noqa: BLE001 — history failure must not abort assess
         note = f"topic_history failed: {exc}"
-        if note not in bundle.open_questions:
-            bundle.open_questions.append(note)
+        if note not in bundle.diagnostics:
+            bundle.diagnostics.append(note)
         return None
     for err in history.fetch_errors:
         note = f"topic_history: {err}"
-        if note not in bundle.open_questions:
-            bundle.open_questions.append(note)
+        if note not in bundle.diagnostics:
+            bundle.diagnostics.append(note)
     return history
 
 
@@ -249,8 +272,8 @@ def _record_vital_fetch_errors(bundle: EvidenceBundle) -> None:
             continue
         for err in item.metadata.get("fetch_errors") or []:
             note = f"vital_signs: {err}"
-            if note not in bundle.open_questions:
-                bundle.open_questions.append(note)
+            if note not in bundle.diagnostics:
+                bundle.diagnostics.append(note)
 
 
 def _bundle_freshness(bundle: EvidenceBundle, profile: EcosystemProfile | None) -> datetime:
@@ -316,9 +339,10 @@ def _heuristic_open_questions(
         elif not any(
             item.metadata.get("discourse_search") for item in bundle.items if item.kind == EvidenceKind.DISCOURSE_THREAD
         ):
-            questions.append(
-                f"Discourse search on {base} returned no extra threads — review search terms or add pinned_threads."
-            )
+            # Profile-curation hint, not a question for the reader.
+            note = f"Discourse search on {base} returned no extra threads — review search terms or add pinned_threads."
+            if note not in bundle.diagnostics:
+                bundle.diagnostics.append(note)
     has_hf = any(item.kind == EvidenceKind.HF_DISCUSSION for item in bundle.items)
     if profile is not None and profile.huggingface and not has_hf:
         repos = ", ".join(r.repo_id for r in profile.huggingface.hub_repos[:3]) or "configured Hub repos"
