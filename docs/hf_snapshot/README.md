@@ -1,9 +1,9 @@
-﻿# Hugging Face Pro-day snapshot (2026-08-30)
+# Hugging Face Pro-day snapshot (2026-08-30)
 
 Captured while the account still had `isPro: true`. Token redacted from every file
 here. `whoami.json` also redacts email and the access-token object.
 
-## Billing â€” is PAYG gated on Pro?
+## Billing — is PAYG gated on Pro?
 
 No. Hugging Face's Inference Providers pricing page
 (https://huggingface.co/docs/inference-providers/en/pricing, fetched 2026-08-30)
@@ -26,7 +26,7 @@ included credit while it lasts.
 Credit **balance** is not in the API. Paste it from
 https://huggingface.co/settings/billing if you want the number next to this
 file later. The code paths that spend it are synthesis, `ping`, and the
-extraction runner â€” Hub retrieval does not.
+extraction runner — Hub retrieval does not.
 
 ## Catalog pin (extractor)
 

@@ -1,4 +1,4 @@
-﻿# Hitherto — contributor notes
+# Hitherto — contributor notes
 
 Architecture: `ARCHITECTURE.md`. Current implementation snapshot: `docs/STATUS.md`.
 

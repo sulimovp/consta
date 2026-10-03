@@ -1,4 +1,4 @@
-﻿# Block-6 extraction pilots
+# Block-6 extraction pilots
 
 Runs of `python -m casefile.predict.extract_run` over the existing assignment gold draws.
 No new items were fetched for any of these; the corpus selection criterion is still an open
@@ -10,11 +10,11 @@ do not resume a v2 JSONL with the current runner and treat the mix as one study.
 
 `smoke_block6_v3_gpt_oss.jsonl` is `--limit 10` over `pytorch_holdout.yaml`, and the first
 45 entries there are pull requests, so the slice contains no issues and no Apertus items.
-Read its fill rates as "the rubric fills on PRs", not as a discrimination check â€” `affect`
+Read its fill rates as "the rubric fills on PRs", not as a discrimination check — `affect`
 is 0 on all nine populated rows. See the dated notes in the extraction table captions.
 
 `--stratify 20 --seed 0` with `--kinds issue,pr,hub` draws four items from each
-originÃ—kind cell. The 31 Aug attempt wrote 20 rows of Hugging Face 402 (no inference
+origin×kind cell. The 31 Aug attempt wrote 20 rows of Hugging Face 402 (no inference
 credit). Do not read that JSONL as a filled smoke. The runner stops a batch on HTTP
 401/402 (`llm_http_status`, not a substring of the error body). Compaction keeps rows
 already in the file that are not in the current draw.
@@ -44,7 +44,7 @@ python -m casefile.predict.extract_run \
 | `pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl` | `block6-v3` | `openai/gpt-oss-120b:groq` | 112 | 3 | 6 |
 
 `smoke_block6_v3_demand_gpt_oss.jsonl` is `--stratify 20 --seed 0 --kinds issue,hub` (complete 1 Sep).
-Strata: 6 `pytorch:issue`, 7 `other:issue`, 7 `other:hub` â€” no PRs. On all 20 rows, judged ordinals
+Strata: 6 `pytorch:issue`, 7 `other:issue`, 7 `other:hub` — no PRs. On all 20 rows, judged ordinals
 fill (`specificity` 20/20, `blocking_severity` 19/20, `affect` 20/20, `scope` 18/20);
 `maintainer_stance` 1/20 (gold YAML is title+body). After the 2 Sep revalidate (absence
 needs no quote), one gpt-oss row still fails (`pytorch#39639`, intent quote not in the
@@ -53,8 +53,8 @@ thread). This is the first filled v3 smoke on demand-side items.
 `secondary_block6_v3_gemma.jsonl` is the same draw on Gemma. Revalidate cleared 18
 quote-on-false errors; 0 span failures remain. Agreement
 (`agreement_2026-09-01_gpt_oss_x_gemma_v3.json`) is overlap 20, valid 19. Read `n` first:
-`intent` Îº 0.77 (n=17), `specificity` Î± 0.81 (n=19), `blocking_severity` Î± 0.95 (n=18),
-`scope` Îº 0.19 (n=17). `affect` matches on 18/19 rows but Î± is 0 because the value is
+`intent` κ 0.77 (n=17), `specificity` α 0.81 (n=19), `blocking_severity` α 0.95 (n=18),
+`scope` κ 0.19 (n=17). `affect` matches on 18/19 rows but α is 0 because the value is
 almost always 0. `maintainer_stance` n=1. This is a smoke, not the 200-item table.
 
 `pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl` is every issue and Hub row in the assignment
@@ -64,9 +64,9 @@ smoke so those calls were not repeated. Of 112 rows, 109 have fields; 3 remain r
 `blocking_severity` 94%, `affect` 96%, `scope` 92%, `maintainer_stance` 7%. Span failures
 6/112. v2 on the mixed 176-row file had `blocking_severity` at 6.2%.
 
-**Frozen 2026-09-03.** Distributions, not fill rates, are the reading: `affect` is 102Ã—0 of 105
+**Frozen 2026-09-03.** Distributions, not fill rates, are the reading: `affect` is 102×0 of 105
 non-null; `specificity` and `blocking_severity` are near-binary; `scope` is 66% `one_line_fix`
-with smoke Îº 0.19. Usable columns today: `intent` plus the two binarized ordinals. Do not
+with smoke κ 0.19. Usable columns today: `intent` plus the two binarized ordinals. Do not
 spend on Gemma-200 or comment reconstruction until the modelling window (14 Sep). Details in
 the freeze note in this README.
 
@@ -88,7 +88,7 @@ already present. `--revalidate` recomputes `span_errors` from stored fields (no 
 ## Commands
 
 v3 demand-side smoke (issues and Hub; this spends inference). `--limit` over the
-holdout is all PRs for N â‰¤ 45. Default `--kinds` is `issue,hub`.
+holdout is all PRs for N ≤ 45. Default `--kinds` is `issue,hub`.
 
 ```bash
 cd casefile && set -a; . ./.env; set +a

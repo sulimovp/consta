@@ -1,8 +1,8 @@
-﻿# PREDICT â€” wiring the demandÃ—supply quadrant (implementation brief)
+# PREDICT — wiring the demand×supply quadrant (implementation brief)
 
-Written 2026-08-24. Follows the three fixes in the prior brief, which have landed. Companion to [`PREDICT.md`](PREDICT.md) Â§Â§2.3, 3, 7. This is a work order: delete it once the quadrant renders for `torch/masked`.
+Written 2026-08-24. Follows the three fixes in the prior brief, which have landed. Companion to [`PREDICT.md`](PREDICT.md) §§2.3, 3, 7. This is a work order: delete it once the quadrant renders for `torch/masked`.
 
-**What this delivers.** A real demandÃ—supply placement for a path-scoped topic, computed entirely from realized outcomes, printed next to a refusal for the hazard score. No training, no person-period table, no Blocks 1â€“6, no walk-forward harness. `score_refused` stays populated throughout â€” that is intended, and the report saying so is the point.
+**What this delivers.** A real demand×supply placement for a path-scoped topic, computed entirely from realized outcomes, printed next to a refusal for the hazard score. No training, no person-period table, no Blocks 1–6, no walk-forward harness. `score_refused` stays populated throughout — that is intended, and the report saying so is the point.
 
 **What still blocks it today.** After the gate split, `assess_topic_hazard` refuses the rollup on five shared preconditions that nothing currently supplies: `assignment_precision_measured` is hardcoded `False` at `orchestrator.py:60`, `topic_first_seen` is never passed, and inflow and realized-R1 rates are never computed. This brief supplies all five.
 
@@ -18,18 +18,18 @@ Change `quadrant.py` to take rates directly, matching `supply_from_r1_rates` whi
 def demand_from_inflow(*, recent_per_month: float, baseline_per_month: float) -> DemandTrend
 ```
 
-Keep the existing 1.25 / 0.8 thresholds for rate-only callers. Live rollup classifies from Poisson rate intervals (inflow counts) and Wilson intervals (R1 rates), with a minimum count per window. Update `build_topic_rollup` and `assess_topic_hazard` params to `demand_recent_per_month` / `demand_baseline_per_month`, and update `TopicRollup` fields to match. The rollup refusal reason R1 becomes `"inflow rates unknown â€” cannot place topic on the demand axis"` unchanged.
+Keep the existing 1.25 / 0.8 thresholds for rate-only callers. Live rollup classifies from Poisson rate intervals (inflow counts) and Wilson intervals (R1 rates), with a minimum count per window. Update `build_topic_rollup` and `assess_topic_hazard` params to `demand_recent_per_month` / `demand_baseline_per_month`, and update `TopicRollup` fields to match. The rollup refusal reason R1 becomes `"inflow rates unknown — cannot place topic on the demand axis"` unchanged.
 
 Windows, non-overlapping, defined once and reused by both axes:
 
 | Window | Range | Months |
 |---|---|---|
-| recent | `[T âˆ’ 180d, T]` | 6 |
-| baseline | `[T âˆ’ 730d, T âˆ’ 180d)` | 18 |
+| recent | `[T − 180d, T]` | 6 |
+| baseline | `[T − 730d, T − 180d)` | 18 |
 
 ---
 
-## 2. New module â€” `casefile/predict/topic_history.py`
+## 2. New module — `casefile/predict/topic_history.py`
 
 One module computing every input the rollup needs, from the GitHub search and timeline APIs already wrapped in `clients/github.py`.
 
@@ -43,7 +43,7 @@ class TopicHistory:
     realized_r1_rate_baseline: float | None
     n_resolved_items: int | None
     topic_first_seen: datetime | None
-    # provenance â€” all of it goes in the report footer
+    # provenance — all of it goes in the report footer
     inflow_recent_total: int | None
     inflow_baseline_total: int | None
     r1_sampled_n: int
@@ -66,7 +66,7 @@ repo:{repo} is:issue "{path}" created:{recent_start}..{now}
 repo:{repo} is:issue "{path}" created:{baseline_start}..{recent_start}
 ```
 
-Keep the quoted-phrase path scoping from `vital_signs.py` â€” do not let `torch/masked` degrade into the free-text search `torch masked`.
+Keep the quoted-phrase path scoping from `vital_signs.py` — do not let `torch/masked` degrade into the free-text search `torch masked`.
 
 **Saturation guard.** GitHub search `total_count` caps at 1000. If either window returns `>= 1000`, set `search_truncated=True` and leave both inflow fields `None`, so the rollup refuses. A rate computed from a capped count is the `closure_rate` mistake in a new window; do not compute it and do not report it.
 
@@ -78,19 +78,19 @@ Per window, sample closed issues on the path and label them with the existing `l
 repo:{repo} is:issue is:closed "{path}" closed:{window_start}..{window_end}
 ```
 
-Sampling must not be relevance-ranked â€” that is the same bias trap. Pass `sort=created&order=desc` and take up to `_R1_SAMPLE_CAP = 50` per window. Record `sampled_n` and the window's `total_count` separately; the rate is a sample estimate, the floor uses the total.
+Sampling must not be relevance-ranked — that is the same bias trap. Pass `sort=created&order=desc` and take up to `_R1_SAMPLE_CAP = 50` per window. Record `sampled_n` and the window's `total_count` separately; the rate is a sample estimate, the floor uses the total.
 
 Per sampled issue:
 
-1. `list_issue_timeline(...)` â†’ `labels_at_time(timeline, closed_at)` and `linked_merged_prs_le(timeline, closed_at, pr_paths=...)`.
+1. `list_issue_timeline(...)` → `labels_at_time(timeline, closed_at)` and `linked_merged_prs_le(timeline, closed_at, pr_paths=...)`.
 2. `maintainer_answered` = any `commented` event by a login in `maintainers.for_snapshot(closed_at)`.
 3. `label_issue_outcome(..., topic_paths=topic_paths, unlabeled_closed_as_r2=True)`.
 
-Rate = `R1 / (R1 + R2)` over the labelled sample. R3 cannot occur here â€” the query is `is:closed` with a bounded `closed:` range.
+Rate = `R1 / (R1 + R2)` over the labelled sample. R3 cannot occur here — the query is `is:closed` with a bounded `closed:` range.
 
-**The `pr_paths` trap â€” read this before implementing.** R1 via linked PR requires `paths_touched âˆ© topic_paths` (fix 6). Populating `pr_paths` costs one `GET /pulls/{n}/files` per linked merged PR. When that call fails or is skipped, the PR arrives with empty paths, the intersection is empty, and the item silently becomes **R2**. That would read as collapsed maintainer capacity on exactly the topics the product cares about â€” the confound R1/R2 exists to remove, re-entering through a rate limit.
+**The `pr_paths` trap — read this before implementing.** R1 via linked PR requires `paths_touched ∩ topic_paths` (fix 6). Populating `pr_paths` costs one `GET /pulls/{n}/files` per linked merged PR. When that call fails or is skipped, the PR arrives with empty paths, the intersection is empty, and the item silently becomes **R2**. That would read as collapsed maintainer capacity on exactly the topics the product cares about — the confound R1/R2 exists to remove, re-entering through a rate limit.
 
-Required behaviour: if any linked merged PR on an item has unresolved paths, **exclude that item from both numerator and denominator** and increment `r1_excluded_n`. If `r1_excluded_n > 0.25 Ã— sampled_n` in either window, set both rate fields to `None` so the rollup refuses. Never let a fetch failure become an outcome.
+Required behaviour: if any linked merged PR on an item has unresolved paths, **exclude that item from both numerator and denominator** and increment `r1_excluded_n`. If `r1_excluded_n > 0.25 × sampled_n` in either window, set both rate fields to `None` so the rollup refuses. Never let a fetch failure become an outcome.
 
 Cap PR-file lookups at 3 per issue; an issue with more linked merged PRs than that is excluded rather than partially resolved.
 
@@ -101,23 +101,23 @@ First commit touching the path. Two calls, no full pagination:
 1. `GET /repos/{o}/{r}/commits?path={path}&per_page=1` and read the `Link: rel="last"` header for the final page number.
 2. Fetch that page; its last entry is the earliest commit. Use `commit.author.date`.
 
-If the `Link` header is absent the history fits in one page and the last entry of that page is the answer. On any failure leave `None` â€” shared precondition S6 then refuses, which is correct.
+If the `Link` header is absent the history fits in one page and the last entry of that page is the answer. On any failure leave `None` — shared precondition S6 then refuses, which is correct.
 
 `clients/github.py` currently discards response headers in `get_json`. Add a `get_json_with_headers` or have `list_commits` optionally return the link header; do not parse HTML or guess page counts.
 
 ### 2.4 Errors
 
-Every failure appends to `fetch_errors` and leaves the corresponding field `None`. Nothing here may impute a zero. This is the 2026-08-23 project notes finding â€” retrieval failure and absence of evidence are different states â€” and it applies unchanged.
+Every failure appends to `fetch_errors` and leaves the corresponding field `None`. Nothing here may impute a zero. This is the 2026-08-23 project notes finding — retrieval failure and absence of evidence are different states — and it applies unchanged.
 
 ---
 
-## 3. Assignment precision â€” the one piece of genuinely new work
+## 3. Assignment precision — the one piece of genuinely new work
 
-`PREDICT.md` Â§3 requires itemâ†’topic assignment precision to be measured before any rollup renders. It is a hand-check, not code, and it is what actually gates the October slide.
+`PREDICT.md` §3 requires item→topic assignment precision to be measured before any rollup renders. It is a hand-check, not code, and it is what actually gates the October slide.
 
 ### 3.1 Ground truth
 
-`eval/topic_assignment/{profile}.yaml` â€” 100 issues across three repos, hand-labelled:
+`eval/topic_assignment/{profile}.yaml` — 100 issues across three repos, hand-labelled:
 
 ```yaml
 profile: pytorch
@@ -129,11 +129,11 @@ items:
     topic: torch/masked        # or null when the issue is not about this topic
 ```
 
-Sample the 100 as: 50 drawn from the automatic assignment's positives (measures precision) and 50 from path-adjacent issues it did *not* assign (measures recall). Record the draw method in the file â€” a convenience sample of positives only measures nothing about recall.
+Sample the 100 as: 50 drawn from the automatic assignment's positives (measures precision) and 50 from path-adjacent issues it did *not* assign (measures recall). Record the draw method in the file — a convenience sample of positives only measures nothing about recall.
 
 ### 3.2 Scorer
 
-`scripts/score_topic_assignment.py` â€” runs the automatic assignment over the labelled set, prints precision, recall, n, and a Wilson interval on precision. **Verify:** rerunnable offline from a fixture, and its output pastes into the profile block below.
+`scripts/score_topic_assignment.py` — runs the automatic assignment over the labelled set, prints precision, recall, n, and a Wilson interval on precision. **Verify:** rerunnable offline from a fixture, and its output pastes into the profile block below.
 
 ### 3.3 Profile field
 
@@ -155,7 +155,7 @@ measured = (
 )
 ```
 
-Below 0.80 the rollup refuses with the measured number in the reason string â€” `"itemâ†’topic assignment precision 0.62 < 0.80 (n=100, measured 2026-09-??)"`. A measured failure is a better report line than an unmeasured pass.
+Below 0.80 the rollup refuses with the measured number in the reason string — `"item→topic assignment precision 0.62 < 0.80 (n=100, measured 2026-09-??)"`. A measured failure is a better report line than an unmeasured pass.
 
 Stale check: reuse the existing `max_age_days` convention. If `measured_at` is older than the profile's `max_age_days`, treat it as unmeasured.
 
@@ -163,19 +163,19 @@ Stale check: reuse the existing `max_age_days` convention. If `measured_at` is o
 
 ## 4. Orchestrator and renderer
 
-`orchestrator.py:60` â€” delete the hardcoded `assignment_precision_measured=False` and pass the computed `TopicHistory` fields plus the derived precision flag. Call `compute_topic_history` only when `plan.resolved_path` is set; skip it entirely otherwise, since S2 refuses anyway and the calls are not free.
+`orchestrator.py:60` — delete the hardcoded `assignment_precision_measured=False` and pass the computed `TopicHistory` fields plus the derived precision flag. Call `compute_topic_history` only when `plan.resolved_path` is set; skip it entirely otherwise, since S2 refuses anyway and the calls are not free.
 
-`observation_window_days` stays unset. C3 keeps the score refused, which is correct â€” there is no trained artifact either.
+`observation_window_days` stays unset. C3 keeps the score refused, which is correct — there is no trained artifact either.
 
 Renderer: under `## Topic trajectory`, after the quadrant line, add a provenance line so every number is traceable:
 
 ```
-Demand **rising**, supply **falling** â†’ quadrant **gap**.
+Demand **rising**, supply **falling** → quadrant **gap**.
 
-Demand rising, resolution capacity falling â€” contribution target.
+Demand rising, resolution capacity falling — contribution target.
 
-Inflow 3.7/mo recent vs 1.9/mo baseline Â· R1 rate 0.31 (n=44, 6 excluded) vs 0.68 (n=50)
-Â· assignment precision 0.86 (n=100, 2026-09-??)
+Inflow 3.7/mo recent vs 1.9/mo baseline · R1 rate 0.31 (n=44, 6 excluded) vs 0.68 (n=50)
+· assignment precision 0.86 (n=100, 2026-09-??)
 
 _Hazard score refused:_ trained topic-hazard artifact not shipped (topic-hazard-v0-refuse)
 ```
@@ -189,25 +189,25 @@ That line is the difference between a chart and a citation. Do not ship the quad
 | Name | Asserts |
 |---|---|
 | `test_inflow_windows_do_not_overlap` | baseline query end == recent query start; 18-month and 6-month divisors |
-| `test_inflow_saturation_refuses` | mocked `total_count=1000` â†’ both inflow fields `None`, `search_truncated` true, rollup refused |
-| `test_r1_rate_excludes_unresolved_pr_paths` | one item with an unfetchable PR path â†’ `r1_excluded_n == 1`, item in neither numerator nor denominator |
-| `test_r1_rate_refuses_when_exclusions_exceed_quarter` | 13 of 50 excluded â†’ rate `None` â†’ rollup refused |
+| `test_inflow_saturation_refuses` | mocked `total_count=1000` → both inflow fields `None`, `search_truncated` true, rollup refused |
+| `test_r1_rate_excludes_unresolved_pr_paths` | one item with an unfetchable PR path → `r1_excluded_n == 1`, item in neither numerator nor denominator |
+| `test_r1_rate_refuses_when_exclusions_exceed_quarter` | 13 of 50 excluded → rate `None` → rollup refused |
 | `test_r1_sample_is_created_sorted` | search called with `sort=created`, never relevance |
-| `test_topic_first_seen_from_link_last_page` | mocked `Link: rel="last"` â†’ earliest commit date |
-| `test_assignment_precision_below_floor_refuses` | precision 0.62 â†’ refused, reason carries the number and n |
-| `test_assignment_precision_stale_refuses` | `measured_at` older than `max_age_days` â†’ treated as unmeasured |
-| `test_fetch_error_never_imputes_zero` | search raising â†’ field `None` and a `fetch_errors` entry, not `0.0` |
+| `test_topic_first_seen_from_link_last_page` | mocked `Link: rel="last"` → earliest commit date |
+| `test_assignment_precision_below_floor_refuses` | precision 0.62 → refused, reason carries the number and n |
+| `test_assignment_precision_stale_refuses` | `measured_at` older than `max_age_days` → treated as unmeasured |
+| `test_fetch_error_never_imputes_zero` | search raising → field `None` and a `fetch_errors` entry, not `0.0` |
 | `test_quadrant_renders_with_provenance_line` | rendered report contains inflow, R1 n, exclusions, and precision |
 
-**Verify end to end:** `casefile assess -q "â€¦" -r pytorch/pytorch -p torch/masked` prints a quadrant with the provenance line and a score refusal in the same section, and the Apertus run prints two refusals.
+**Verify end to end:** `casefile assess -q "…" -r pytorch/pytorch -p torch/masked` prints a quadrant with the provenance line and a score refusal in the same section, and the Apertus run prints two refusals.
 
 ---
 
 ## 6. Cost and order
 
-API calls per assessment, path-scoped: 2 inflow searches, 2 closed-issue searches, up to 100 timelines, up to 300 PR-file lookups, 2 commit calls. The PR-file lookups dominate. With `CASEFILE_GITHUB_TOKEN` at 5000/hr this is comfortable for one report and needs caching before the GitHub Action ships â€” the existing `cache/github_search.py` should cover the searches; PR files need a small addition.
+API calls per assessment, path-scoped: 2 inflow searches, 2 closed-issue searches, up to 100 timelines, up to 300 PR-file lookups, 2 commit calls. The PR-file lookups dominate. With `CASEFILE_GITHUB_TOKEN` at 5000/hr this is comfortable for one report and needs caching before the GitHub Action ships — the existing `cache/github_search.py` should cover the searches; PR files need a small addition.
 
-Order: Â§1 (signature fix, isolated) â†’ Â§2 (module + tests against fixtures, no network) â†’ Â§3 (the hand-check, which is calendar work and should start in parallel because it is the only item that cannot be compressed) â†’ Â§4 (wiring).
+Order: §1 (signature fix, isolated) → §2 (module + tests against fixtures, no network) → §3 (the hand-check, which is calendar work and should start in parallel because it is the only item that cannot be compressed) → §4 (wiring).
 
-Â§3 is the critical path. Start the labelling before the code is finished.
+§3 is the critical path. Start the labelling before the code is finished.
 

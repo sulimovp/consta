@@ -32,7 +32,7 @@ To add or change presets, edit the YAML only — `casefile.web.app` loads it at 
 ```bash
 cd casefile
 pip install -e ".[dev,web]"
-# configure casefile/.env (CASEFILE_GITHUB_TOKEN, optional LLM keys)
+# configure .env (CASEFILE_GITHUB_TOKEN, optional LLM keys)
 casefile-web
 # open http://127.0.0.1:5050
 ```

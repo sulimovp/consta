@@ -1,4 +1,4 @@
-﻿# Casefile
+# Casefile
 
 Evidence-first briefs for OSS contribution decisions. Given a question and a target repository, Casefile retrieves cited evidence (issues, commits, docs, adjacent projects) and optionally synthesizes a short summary. Humans keep the final call.
 
@@ -31,19 +31,21 @@ cp .env.example .env
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `CASEFILE_GITHUB_TOKEN` | Yes (live runs) | Fine-grained PAT or classic `public_repo` |
+| `CASEFILE_LLM_PROVIDER` | Optional | `huggingface`, `openai` or `anthropic` (code default: `anthropic`; `.env.example` sets `huggingface`) |
+| `CASEFILE_HF_TOKEN` | Optional | Synthesis via the Hugging Face router; also used for gated Hub discussions |
 | `CASEFILE_OPENAI_API_KEY` | Optional | Synthesis via OpenAI |
 | `CASEFILE_ANTHROPIC_API_KEY` | Optional | Synthesis via Anthropic |
-| `CASEFILE_LLM_PROVIDER` | Optional | `openai` or `anthropic` (default: `anthropic`) |
+| `CASEFILE_LLM_MODEL` | Optional | Override the provider's default model |
 
 ## Web UI
 
 ```bash
 pip install -e ".[web]"
 hitherto-web
-# http://127.0.0.1:5050 â€” form, sample cases, cited report (Bootstrap)
+# http://127.0.0.1:5050 — form, sample cases, cited report (Bootstrap)
 ```
 
-**Not sure what to try?** Pick a card on the home page â€” six scenarios across `pytorch`, `numpy`, and `sklearn` ([`eval/sample_cases.yaml`](eval/sample_cases.yaml)).
+**Not sure what to try?** Pick a card on the home page — six scenarios across `pytorch`, `numpy`, and `sklearn` ([`eval/sample_cases.yaml`](eval/sample_cases.yaml)).
 
 See [docs/WEB_UI.md](docs/WEB_UI.md) and [docs/STATUS.md](docs/STATUS.md).
 
@@ -82,7 +84,7 @@ hitherto ping
 
 | Profile | Repo | Use case |
 |---------|------|----------|
-| `pytorch` | `pytorch/pytorch` | `torch.masked`, `torch.nested`, â€¦ |
+| `pytorch` | `pytorch/pytorch` | `torch.masked`, `torch.nested`, … |
 | `numpy` | `numpy/numpy` | `numpy.ma`, NEPs, missing-data semantics |
 | `sklearn` | `scikit-learn/scikit-learn` | SLEPs, metadata routing, estimator API |
 
@@ -90,6 +92,26 @@ hitherto ping
 hitherto list-profiles
 ./scripts/run_sample_assessments.sh   # needs .env
 python scripts/validate_reports.py
+```
+
+## GitHub Action
+
+[`action/action.yml`](action/action.yml) posts a sticky evidence comment on issues:
+
+```yaml
+on:
+  issues:
+    types: [opened]
+permissions:
+  issues: write
+jobs:
+  brief:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: sulimovp/hitherto/action@main
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ecosystem: pytorch
 ```
 
 ## License

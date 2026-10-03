@@ -1,4 +1,4 @@
-﻿# Casefile â€” system architecture
+# Casefile — system architecture
 
 **Implementation:** standalone Python package.
 
@@ -83,7 +83,7 @@ casefile/
       profile.py           # EcosystemProfile (pydantic)
 
     engine/
-      planner.py           # Question â†’ RetrievalPlan
+      planner.py           # Question → RetrievalPlan
       orchestrator.py      # runs retrievers, merges, dedupes
       validator.py         # URL alive, freshness, no orphan claims
       synthesizer.py       # LLM call with evidence-only context
@@ -148,11 +148,11 @@ All stages exchange pydantic models. Serialization to JSON enables golden tests 
 | `kind` | EvidenceKind | enum below |
 | `title` | str | human label |
 | `url` | HttpUrl | canonical link |
-| `snippet` | str | â‰¤500 chars for synthesis context |
+| `snippet` | str | ≤500 chars for synthesis context |
 | `retrieved_at` | datetime | UTC |
 | `source_retriever` | str | provenance for debugging |
-| `relevance_score` | float | 0â€“1 from ranker |
-| `metadata` | dict | kind-specific (state, labels, merged_at, â€¦) |
+| `relevance_score` | float | 0–1 from ranker |
+| `metadata` | dict | kind-specific (state, labels, merged_at, …) |
 
 **EvidenceKind** (extensible enum):
 
@@ -160,18 +160,18 @@ All stages exchange pydantic models. Serialization to JSON enables golden tests 
 
 ### EvidenceBundle
 
-- `items: list[EvidenceItem]` â€” deduped by URL
-- `open_questions: list[str]` â€” retriever failures, rate limits, ambiguous gaps
-- `freshness: datetime` â€” oldest `retrieved_at` or profile `last_verified`, whichever is worse
-- `retrieval_stats: dict` â€” API calls, cache hits, duration
+- `items: list[EvidenceItem]` — deduped by URL
+- `open_questions: list[str]` — retriever failures, rate limits, ambiguous gaps
+- `freshness: datetime` — oldest `retrieved_at` or profile `last_verified`, whichever is worse
+- `retrieval_stats: dict` — API calls, cache hits, duration
 
 ### AssessmentReport
 
 - `request: AssessmentRequest`
 - `evidence: EvidenceBundle`
-- `summary: str | None` â€” synthesis paragraphs with `[n]` tags; `None` if `--no-synthesis`
-- `citation_map: dict[int, str]` â€” `[n]` â†’ evidence id
-- `validation_errors: list[str]` â€” citation checker output; empty = pass
+- `summary: str | None` — synthesis paragraphs with `[n]` tags; `None` if `--no-synthesis`
+- `citation_map: dict[int, str]` — `[n]` → evidence id
+- `validation_errors: list[str]` — citation checker output; empty = pass
 
 ---
 
@@ -215,7 +215,7 @@ Profile adds **sources and synonyms**; retriever code stays generic.
 1. **FTS5** keyword match on indexed issue/PR text (profile synonym expansion).
 2. **Vector** similarity (embedding of question vs item title+snippet).
 3. **Recency** boost for commits and merged PRs.
-4. **Profile weights** â€” e.g. label `module: masked` +0.2 for PyTorch.
+4. **Profile weights** — e.g. label `module: masked` +0.2 for PyTorch.
 
 Final score = weighted sum; top-K per kind before global cap.
 
@@ -225,13 +225,13 @@ Final score = weighted sum; top-K per kind before global cap.
 
 `planner.py` turns `(question, repo, profile)` into a `RetrievalPlan`:
 
-1. Expand question with profile **synonyms** (`masked tensor` â†’ `MaskedTensor`, `NestedTensor`, â€¦).
+1. Expand question with profile **synonyms** (`masked tensor` → `MaskedTensor`, `NestedTensor`, …).
 2. Select retrievers by `tier` and available profile sections.
 3. Build GitHub search queries (issues: `repo:pytorch/pytorch masked tensor`, PRs: `repo:pytorch/pytorch path:torch/masked`).
 4. Attach default file paths: `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, plus profile `scope_files`.
 5. Set rate-limit budget (default: 25 search calls, 100 REST calls per assessment).
 
-No LLM in the planner for MVP â€” keeps runs deterministic and cheap. Optional later: LLM suggests extra keywords, planner still validates.
+No LLM in the planner for MVP — keeps runs deterministic and cheap. Optional later: LLM suggests extra keywords, planner still validates.
 
 ---
 
@@ -249,7 +249,7 @@ Runs **before** synthesis on every `EvidenceItem`:
 AdjacentProjectsRetriever flow:
 
 1. Static list from profile `adjacent_projects` (always validated).
-2. Optional LLM proposes extra names â†’ **must** pass HTTP/GitHub existence check â†’ drop failures silently.
+2. Optional LLM proposes extra names → **must** pass HTTP/GitHub existence check → drop failures silently.
 
 ---
 
@@ -257,7 +257,7 @@ AdjacentProjectsRetriever flow:
 
 **Synthesizer**
 
-- Input: question + evidence items (id, title, snippet, url only â€” not full bodies).
+- Input: question + evidence items (id, title, snippet, url only — not full bodies).
 - System prompt: evidence-only; refuse unknown projects; tag sentences with `[n]`.
 - Output: structured JSON `{ paragraphs: [...], citations: { "1": "issue-89734", ... } }` preferred over free text.
 
@@ -265,7 +265,7 @@ AdjacentProjectsRetriever flow:
 
 - Every `[n]` in summary maps to an evidence id.
 - Every evidence id referenced must exist in bundle.
-- Optional: LLM sentence â†” snippet entailment check (Phase 3 eval harness).
+- Optional: LLM sentence ↔ snippet entailment check (Phase 3 eval harness).
 
 If checker fails: strip summary, keep evidence, set `validation_errors`, still write report.
 
@@ -327,9 +327,9 @@ Flags: `--no-synthesis`, `--json`, `--refresh-index`.
 
 ### GitHub App (Phase 2)
 
-- Webhook â†’ build `AssessmentRequest` from issue title + body.
+- Webhook → build `AssessmentRequest` from issue title + body.
 - Call same `orchestrator.run()`.
-- `render.github_comment` â†’ sticky comment; store report hash on issue label for idempotent re-run.
+- `render.github_comment` → sticky comment; store report hash on issue label for idempotent re-run.
 
 ---
 
@@ -369,7 +369,7 @@ Must appear in top results for regression:
 
 - Prototype label removal timeline (if not in sources).
 - Whether core team prefers NestedTensor for all masked-sequence use cases.
-- Maintainer bandwidth (inference, not fact â€” synthesis must say "open question").
+- Maintainer bandwidth (inference, not fact — synthesis must say "open question").
 
 ---
 
@@ -394,8 +394,8 @@ Never commit tokens. `casefile ping` verifies GitHub + LLM connectivity.
 | Retrievers | pytest-httpx fixtures from recorded GitHub responses |
 | Validator | synthetic dead URLs, stale timestamps |
 | Planner | snapshot tests on torch.masked plan |
-| Golden | full assess run against fixtures â†’ compare evidence ids |
-| Citation checker | mutate summary with bad `[n]` â†’ expect errors |
+| Golden | full assess run against fixtures → compare evidence ids |
+| Citation checker | mutate summary with bad `[n]` → expect errors |
 | Live smoke | optional nightly, rate-limited, not in CI |
 
 ---
@@ -415,8 +415,8 @@ Never commit tokens. `casefile ping` verifies GitHub + LLM connectivity.
 
 ## Open design decisions
 
-- [ ] Async (`asyncio`) vs sync retrievers with thread pool â€” default async for parallel I/O.
-- [ ] Embed at index time vs query time â€” index time for issues; query time for question embedding only.
-- [ ] Local git clone vs GitHub commits API for activity â€” prefer API for MVP; optional clone for offline.
-- [ ] JSON report as primary artifact with markdown as render target â€” lean toward yes for App idempotency.
+- [ ] Async (`asyncio`) vs sync retrievers with thread pool — default async for parallel I/O.
+- [ ] Embed at index time vs query time — index time for issues; query time for question embedding only.
+- [ ] Local git clone vs GitHub commits API for activity — prefer API for MVP; optional clone for offline.
+- [ ] JSON report as primary artifact with markdown as render target — lean toward yes for App idempotency.
 

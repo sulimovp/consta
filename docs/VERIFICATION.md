@@ -6,7 +6,7 @@ Agents and humans follow the same bar. CI enforces the automated part; the visua
 
 ## 1. Automated gate (required always)
 
-From `casefile/`:
+From the repository root:
 
 ```bash
 ./scripts/verify.sh
@@ -52,4 +52,4 @@ Browser automation in CI is not required yet; **manual or agent browser review i
 
 ## 4. CI
 
-GitHub Actions workflow `.github/workflows/assessor.yml` runs `./scripts/verify.sh` on pushes touching `casefile/`.
+GitHub Actions workflow `.github/workflows/ci.yml` runs `./scripts/verify.sh` on every push and PR, then installs the built wheel and checks that profiles and sample cases ship inside it.
