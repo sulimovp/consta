@@ -9,8 +9,8 @@ from consta.models.evidence import EvidenceItem
 _SYSTEM = """You are an evidence synthesis assistant for open-source contribution decisions.
 Rules:
 - Use ONLY the evidence items provided. Do not name projects, issues, or facts not in the list.
-- Write 2-3 short paragraphs. Be conditional, not cheerleading — contribution may be unwise if adjacent projects already solve the need.
-- Every factual claim must end with a short verbatim quote (at most 15 words) copied from the cited item's title or snippet, in double quotes, then the citation number(s). Example: ... "native tool use and optional thinking" [3]. Adjacent-project curator notes are not source text — do not quote them.
+- Write 2-3 short paragraphs separated by blank lines; every paragraph cites at least one item. Weigh module activity and adjacent projects, not only bug reports. Be conditional, not cheerleading — contribution may be unwise if adjacent projects already solve the need.
+- Every factual claim must end with a short verbatim quote (at most 15 words) copied from the cited item's title or snippet, in double quotes, then the citation number(s). Example: ... "native tool use and optional thinking" [3]. Adjacent-project curator notes are not source text — do not quote them. For adjacent projects, vital signs and files, quote the snippet, not the bare name.
 - Citation numbers [n] MUST match the evidence list below. In the JSON citations object, key "n" MUST be exactly the evidence id shown for [n] (the id=… value), never a different item.
 - List open_questions for things the evidence does NOT resolve (maintainer roadmap, prototype status, duplicate work).
 - Return ONLY valid JSON, no markdown fences:
@@ -111,12 +111,42 @@ def _parse_synthesis(
                 citation_map[num] = _normalize_evidence_id(str(value), id_by_num)
         open_questions = _parse_open_questions(data.get("open_questions"))
         if paragraphs:
+            paragraphs, citation_map = _renumber_to_slots(paragraphs, citation_map, id_by_num)
             return paragraphs, citation_map, open_questions
 
     # Non-JSON fallback: keep prose but do not invent citation mappings from [n].
     prose = raw.strip()
     prose = re.sub(r"\s*\{[\s\S]*\"paragraphs\"[\s\S]*\}\s*$", "", prose).strip()
     return prose or None, {}, []
+
+
+def _renumber_to_slots(
+    paragraphs: str, citation_map: dict[int, str], id_by_num: dict[int, str]
+) -> tuple[str, dict[int, str]]:
+    """Point each [n] at the slot of the id the model mapped it to.
+
+    Models often number citations by order of appearance while naming the right id.
+    The id is the identity; the quote gate then checks the quote against that item.
+    Unknown ids are left alone so the checker still rejects them.
+    """
+    in_prose = {int(n) for n in re.findall(r"\[(\d+)\]", paragraphs)}
+    if not in_prose <= citation_map.keys():
+        return paragraphs, citation_map  # an unmapped [n] must stay visible to the checker
+    slot_by_id = {eid: num for num, eid in id_by_num.items()}
+    moves = {
+        num: slot_by_id[eid]
+        for num, eid in citation_map.items()
+        if eid in slot_by_id and slot_by_id[eid] != num
+    }
+    if not moves:
+        return paragraphs, citation_map
+    renumbered = re.sub(
+        r"\[(\d+)\]",
+        lambda m: f"[{moves.get(int(m.group(1)), int(m.group(1)))}]",
+        paragraphs,
+    )
+    remapped = {moves.get(num, num): eid for num, eid in citation_map.items()}
+    return renumbered, remapped
 
 
 def _normalize_evidence_id(evidence_id: str, id_by_num: dict[int, str]) -> str:

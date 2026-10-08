@@ -9,7 +9,7 @@ from consta.engine.planner import build_plan
 from consta.engine.synthesizer import synthesize
 from consta.engine.validator import validate_evidence
 from consta.models.assessment import AssessmentReport, AssessmentRequest
-from consta.models.evidence import EvidenceBundle, EvidenceKind
+from consta.models.evidence import EvidenceBundle, EvidenceItem, EvidenceKind
 from consta.models.profile import EcosystemProfile
 from consta.predict.time import MaintainerSet
 from consta.predict.topic_hazard import (
@@ -62,7 +62,7 @@ class AssessmentEngine:
             bundle.items = kept
             bundle.excluded = excluded
             bundle.dedupe_by_url()
-            bundle.items = bundle.items[: request.max_evidence]
+            bundle.items = _diversify(bundle.items)[: request.max_evidence]
             bundle.freshness = _bundle_freshness(bundle, profile)
             bundle.open_questions.extend(
                 _heuristic_open_questions(bundle, profile, plan.resolved_path)
@@ -264,6 +264,27 @@ def _topic_forecast(
         ),
     )
     return topic_hazard_to_dict(result, provenance=provenance)
+
+
+_PER_KIND_LEAD = 2
+
+
+def _diversify(items: list[EvidenceItem]) -> list[EvidenceItem]:
+    """Lead with the top items of every kind, then the rest by score.
+
+    Synthesis reads only the first slots and issues outscore everything else, so a
+    pure score sort hid vital signs and adjacent projects from the model.
+    """
+    lead: list[EvidenceItem] = []
+    rest: list[EvidenceItem] = []
+    taken: dict[EvidenceKind, int] = {}
+    for item in items:  # already sorted by score
+        if taken.get(item.kind, 0) < _PER_KIND_LEAD:
+            taken[item.kind] = taken.get(item.kind, 0) + 1
+            lead.append(item)
+        else:
+            rest.append(item)
+    return lead + rest
 
 
 def _record_vital_fetch_errors(bundle: EvidenceBundle) -> None:

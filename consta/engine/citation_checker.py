@@ -15,6 +15,10 @@ _QUOTE_THEN_CITES_RE = re.compile(
     r'"([^"]{1,240})"\s*((?:\[\d+\])+)'
 )
 _CITE_NUM_RE = re.compile(r"\[(\d+)\]")
+# Kinds whose title is itself content (an issue title states the bug); other titles are names.
+_CONTENT_TITLED_KINDS = frozenset(
+    {"issue", "issue_comment", "pull_request", "discourse_thread", "hf_discussion"}
+)
 
 
 def check_citations(
@@ -32,6 +36,13 @@ def check_citations(
     refs_in_text = {int(m.group(1)) for m in _REF_RE.finditer(summary)}
     if not refs_in_text:
         return ["Summary has no [n] citations; uncited synthesis is not shown."]
+
+    paragraphs = [p for p in re.split(r"\n\s*\n", summary) if p.strip()]
+    for idx, paragraph in enumerate(paragraphs, start=1):
+        if not _REF_RE.search(paragraph):
+            errors.append(
+                f"Paragraph {idx} has no [n] citation; every claim must cite evidence."
+            )
 
     for num in sorted(refs_in_text):
         evidence_id = citation_map.get(num)
@@ -72,8 +83,16 @@ def check_citations(
                 errors.append(f"Citation [{num}] quote exceeds 15 words: {quote!r}")
                 continue
             item = items_by_id[evidence_id]
+            names_only = _normalize_span(quote) == _normalize_span(item.title)
+            if names_only and item.kind not in _CONTENT_TITLED_KINDS:
+                # "pandas" or "Module vital signs: numpy/ma" names the source; it supports no claim.
+                errors.append(
+                    f"Citation [{num}] quotes only the name {quote!r}; "
+                    "quote the passage that supports the claim."
+                )
+                continue
             hay = quote_haystack(item)
-            if _normalize_span(quote) not in _normalize_span(hay):
+            if not _quote_in(quote, hay):
                 errors.append(
                     f"Citation [{num}] quote {quote!r} not found in cited item {evidence_id!r}"
                 )
@@ -95,5 +114,23 @@ def quote_haystack(item: EvidenceItem) -> str:
     return f"{item.title} {item.snippet}"
 
 
+def _quote_in(quote: str, hay: str) -> bool:
+    """Verbatim match; an elided quote ("a ... b") needs every fragment, in order."""
+    hay_n = _normalize_span(hay)
+    pos = 0
+    fragments = [f for f in re.split(r"\.\.\.|…", quote) if f.strip()]
+    if not fragments:
+        return False
+    for fragment in fragments:
+        found = hay_n.find(_normalize_span(fragment), pos)
+        if found == -1:
+            return False
+        pos = found + len(_normalize_span(fragment))
+    return True
+
+
 def _normalize_span(text: str) -> str:
-    return re.sub(r"\s+", " ", text.lower()).strip()
+    # Backticks and quote marks are formatting: a quote delimited by "..." cannot keep
+    # inner double quotes, and models drop markdown code ticks. Words must still match.
+    text = re.sub(r"[`\"'‘’“”]", "", text.lower())
+    return re.sub(r"\s+", " ", text).strip()

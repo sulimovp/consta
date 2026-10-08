@@ -13,3 +13,4 @@ eval/topic_assignment/apertus_raw.json
 eval/topic_assignment/_probe_hf.py
 eval/topic_assignment/_dump_apertus.py
 eval/topic_assignment/_apply_*.py
+.claude/

@@ -14,13 +14,20 @@ def data_path(repo_relative: str, packaged: str) -> Path:
     return _PACKAGE_DIR / "_data" / packaged
 
 
+# User-wide config first, then ./.env (later files win), so `consta` works from any directory.
+USER_ENV_FILE = Path.home() / ".config" / "consta" / ".env"
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="CONSTA_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="CONSTA_", env_file=(USER_ENV_FILE, ".env"), extra="ignore"
+    )
 
     github_token: str | None = None
     hf_token: str | None = None
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
+    openrouter_api_key: str | None = None
     llm_provider: str = "anthropic"
     llm_model: str | None = None
     cache_dir: Path = Path.home() / ".cache" / "consta"
@@ -33,6 +40,8 @@ class Settings(BaseSettings):
             return bool(self.openai_api_key)
         if self.llm_provider == "huggingface":
             return bool(self.hf_token)
+        if self.llm_provider == "openrouter":
+            return bool(self.openrouter_api_key)
         return bool(self.anthropic_api_key)
 
     def resolved_llm_model(self) -> str:
@@ -42,6 +51,8 @@ class Settings(BaseSettings):
             return "gpt-4o-mini"
         if self.llm_provider == "huggingface":
             return "openai/gpt-oss-120b:groq"
+        if self.llm_provider == "openrouter":
+            return "anthropic/claude-sonnet-5.5"
         return "claude-haiku-4-5"
 
     def resolved_profiles_dir(self) -> Path:

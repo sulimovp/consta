@@ -49,7 +49,11 @@ def validate_evidence(
         if item.metadata.get("exclusion_reason"):
             excluded.append(item.model_copy(deep=True))
             continue
-        if item.kind == EvidenceKind.ISSUE and profile is not None and request is not None:
+        if (
+            item.kind in (EvidenceKind.ISSUE, EvidenceKind.PULL_REQUEST)
+            and profile is not None
+            and request is not None
+        ):
             if not _issue_on_topic(item, profile, question, path, repo):
                 dropped = item.model_copy(deep=True)
                 dropped.metadata = {

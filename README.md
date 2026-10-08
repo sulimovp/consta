@@ -9,7 +9,7 @@ uvx consta assess -q "…" -r pytorch/pytorch -p torch/masked --no-synthesis
 
 *Consta* is Latin, Italian and Spanish for "it is on record, it stands as fact". The tool reports what the evidence establishes and leaves the verdict to you.
 
-**Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+**Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Step-by-step walkthrough with real reports:** [examples/](examples/README.md)
 
 Product backlog and delivery dates live in the private Arraxis planning workspace, not in this tree.
 
@@ -22,7 +22,7 @@ pip install -e ".[dev,web]"  # + Flask UI (consta-web)
 
 ## Configure
 
-Copy the template and fill in secrets (never commit `.env`):
+Copy the template and fill in secrets (never commit `.env`). Consta reads `./.env`, and also `~/.config/consta/.env` so it works from any directory:
 
 ```bash
 cp .env.example .env
@@ -31,9 +31,10 @@ cp .env.example .env
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `CONSTA_GITHUB_TOKEN` | Yes (live runs) | Fine-grained PAT or classic `public_repo` |
-| `CONSTA_LLM_PROVIDER` | Optional | `huggingface`, `openai` or `anthropic` (code default: `anthropic`; `.env.example` sets `huggingface`) |
+| `CONSTA_LLM_PROVIDER` | Optional | `huggingface`, `openrouter`, `openai` or `anthropic` (code default: `anthropic`; `.env.example` sets `huggingface`) |
 | `CONSTA_HF_TOKEN` | Optional | Synthesis via the Hugging Face router; also used for gated Hub discussions |
 | `CONSTA_OPENAI_API_KEY` | Optional | Synthesis via OpenAI |
+| `CONSTA_OPENROUTER_API_KEY` | Optional | Synthesis via OpenRouter (default model `anthropic/claude-sonnet-5.5`) |
 | `CONSTA_ANTHROPIC_API_KEY` | Optional | Synthesis via Anthropic |
 | `CONSTA_LLM_MODEL` | Optional | Override the provider's default model |
 

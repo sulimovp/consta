@@ -76,7 +76,11 @@ async def _ping() -> None:
         if not bundle.llm.available:
             typer.echo("LLM: skipped (no API key for configured provider)", err=True)
         else:
-            reply = await bundle.llm.ping()
+            try:
+                reply = await bundle.llm.ping()
+            except Exception as exc:  # noqa: BLE001 — report, don't dump a traceback
+                typer.echo(f"LLM ({settings.llm_provider}): FAILED — {exc}", err=True)
+                raise typer.Exit(1) from exc
             typer.echo(f"LLM ({settings.llm_provider}): ok ({reply.strip()[:40]})")
 
 
@@ -94,6 +98,18 @@ async def _assess(
     allow_stale_profile: bool,
 ) -> None:
     settings = get_settings()
+    if not settings.github_token:
+        typer.echo(
+            "Warning: CONSTA_GITHUB_TOKEN not set (no .env here or in ~/.config/consta/); "
+            "unauthenticated GitHub search is rate-limited and issues may be missing.",
+            err=True,
+        )
+    if not no_synthesis and not settings.llm_configured():
+        typer.echo(
+            f"Warning: no API key for LLM provider {settings.llm_provider!r}; "
+            "the report will have no summary.",
+            err=True,
+        )
     profile = None
     if ecosystem:
         try:

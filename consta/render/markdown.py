@@ -35,6 +35,15 @@ def display_summary(summary: str) -> str:
     )
 
 
+def _snippet_suffix(item: EvidenceItem) -> str:
+    """Snippet text after the title; issue and PR snippets repeat the title first."""
+    snippet = item.snippet
+    if snippet.startswith(item.title):
+        snippet = snippet[len(item.title) :].lstrip(" —")
+    snippet = " ".join(snippet.split())[:120]
+    return f" — {snippet}" if snippet else ""
+
+
 def synthesis_skip_reason(report: AssessmentReport) -> str:
     errors = report.validation_errors
     if any(e.startswith("Synthesis failed") for e in errors):
@@ -122,7 +131,7 @@ def render_markdown(report: AssessmentReport) -> str:
                 lines.append("")
                 lines.extend(_vital_signs_bullets(item))
             else:
-                lines.append(f"[{num}] {item.title} — {item.url} — {item.snippet[:120]}")
+                lines.append(f"[{num}] {item.title} — {item.url}{_snippet_suffix(item)}")
                 note = item.metadata.get("curator_note")
                 if kind == EvidenceKind.ADJACENT_PROJECT and note:
                     lines.append(f"  _Curator note, not source text:_ {note}")
