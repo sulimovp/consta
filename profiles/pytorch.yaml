@@ -3,8 +3,7 @@
 # Re-verified 2026-08-30: adjacent/discourse/RFC URLs 200; golden issues 200.
 # GitHub renamed the labels this profile was written against: `module: masked`
 # → `module: masked operators`, `triaged review` → `triage review`, and
-# `prototype` is gone (search total_count 0). Talk week still needs a pass —
-# 22 October is 53 days after this stamp.
+# `prototype` is gone (search total_count 0).
 
 id: pytorch
 display_name: PyTorch

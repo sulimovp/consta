@@ -7,7 +7,7 @@ Living snapshot of what is built vs what the Consta product backlog still tracks
 | Area | What works |
 |------|------------|
 | **CLI** | `consta ping`, `list-profiles`, `assess` with `--tier`, `--ecosystem`, `--no-synthesis`, `--json` |
-| **Profiles** | Four YAML files: `pytorch`, `numpy`, `sklearn`, `apertus`. Synonyms, pinned issues, path hints, adjacent projects, discourse / Hub. Re-verified 2026-08-30 after the 90-day stamp expired (day 92). Talk week still needs a second pass: 22 October is 53 days after this stamp. |
+| **Profiles** | Four YAML files: `pytorch`, `numpy`, `sklearn`, `apertus`. Synonyms, pinned issues, path hints, adjacent projects, discourse / Hub. Re-verified 2026-08-30 after the 90-day stamp expired (day 92). |
 | **Retrieval** | GitHub issues/PRs/commits/files; adjacent URL validation plus fetched page text (curator `relevance` is labelled, not quoted; a failed fetch is excluded with a reason, not dropped); Hub discussions; vital signs; dev-discuss pinned + HTML search |
 | **Forecast** | Demand×supply topic rollup from realized outcomes (`## Topic trajectory` with provenance). Inflow and R1 samples are filtered with `automatic_assign` before counting. `vitals-logistic-v0` is not printed. Hazard score remains refused until a trained artifact ships. Assignment precision: PyTorch holdout `n=95`, precision 0.91 (recall omitted as unmeasured); Apertus `n=81`, precision 0.88 / recall 0.64 (recall below 0.80 refuses the rollup). Spec: [`docs/PREDICT.md`](PREDICT.md), wiring brief [`docs/PREDICT_QUADRANT.md`](PREDICT_QUADRANT.md) |
 | **Extraction** | Block-6 frozen at v3/112 demand-side rows (`pilot_2026-09-02_…`). Fill rates look high; distributions say ~three usable columns (`intent`, binarized `specificity`/`blocking_severity`). `affect` is a constant; `scope` unreliable (κ 0.19). See [`eval/extraction/README.md`](../eval/extraction/README.md) . |
@@ -49,7 +49,7 @@ Live reports regenerated via [`scripts/run_sample_assessments.sh`](../scripts/ru
 | **0.5** — dev setup | **Mostly done** — scaffold, ping, profiles; SQLite/LanceDB index deferred |
 | **1** — CLI MVP | **In progress** — core retrieval + web UI built; human checkboxes open |
 | **1.5** — Tier 2 | **Partial** — merged PR search, discourse search; issue–PR linking thin |
-| **2** — GitHub Action | **Cut from the talk path** (28 Aug, traded for `topic-hazard-v1`). Returns after 22 Oct. App remains Phase 2.5. |
+| **2** — GitHub Action | **Deferred** (28 Aug, traded for `topic-hazard-v1`). App remains Phase 2.5. |
 | **3** — specialisation | **Partial** — four profiles; held-out scaffold (3 cases), not 10-question live eval |
 
 ## Docs index

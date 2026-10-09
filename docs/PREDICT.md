@@ -2,7 +2,7 @@
 
 Written 2026-08-24. Mechanism spec for topic-hazard prediction.
 
-This exists because the current `vitals-logistic-v0` is not a model — it is nine hand-set constants over eight features, three of which are broken (project notes, 2026-08-23 ×3). Calling it ML on a stage that spends ten minutes attacking confident unsourced verdicts is the exact failure the talk is built to argue against.
+This exists because the current `vitals-logistic-v0` is not a model — it is nine hand-set constants over eight features, three of which are broken (project notes, 2026-08-23 ×3). Calling it ML in a project that exists to argue against confident unsourced verdicts is the exact failure it is built to prevent.
 
 ---
 
@@ -27,7 +27,7 @@ Three properties of that evidence shape matter for the model design:
 
 **The answer came from one artifact, not from an aggregate.** The redundancy question turned on draft PR [#5](https://huggingface.co/swiss-ai/Apertus-v1.5-8B/discussions/5) and the `transformers` doc page still saying "Coming soon". No average over the thread set would have surfaced that; the fix logged in project notes was to *rank* better, not to *score* harder.
 
-That last point is the strongest constraint on this whole design and it is stated up front so it is not lost: **for young or thin ecosystems, rank-and-surface beats score-and-aggregate.** The model below is for PyTorch-shaped corpora with years of resolved history. Apertus is where it refuses, and the refusal is a better slide than a number would be.
+That last point is the strongest constraint on this whole design and it is stated up front so it is not lost: **for young or thin ecosystems, rank-and-surface beats score-and-aggregate.** The model below is for PyTorch-shaped corpora with years of resolved history. Apertus is where it refuses, and the refusal is more useful than a number would be.
 
 ---
 
@@ -37,7 +37,7 @@ The proposal has three parts. One is right, two need reformulating before they w
 
 ### 2.1 LLM as feature extractor, small model on top — right, with three corrections
 
-This is the correct architecture and it is worth saying why, because it is the part that survives contact with the talk's own thesis: the LLM converts unstructured text into a small number of schema-constrained fields; a tabular model that can be calibrated, backtested and traced does the prediction. The LLM never issues the verdict. That is the same separation the citation checker enforces on prose.
+This is the correct architecture and it is worth saying why, because it is the part that survives contact with the project's own thesis: the LLM converts unstructured text into a small number of schema-constrained fields; a tabular model that can be calibrated, backtested and traced does the prediction. The LLM never issues the verdict. That is the same separation the citation checker enforces on prose.
 
 Three corrections:
 
@@ -87,7 +87,7 @@ Two problems, one technical and one about what the product is for.
 | **Demand rising** | Thriving — upstream is on it | **Gap — contribute here** |
 | **Demand falling** | Maturing / solved | Dying |
 
-The top-right cell is the entire product. `torch/masked` sits in it: demand persists, resolution capacity fell away after 2022, and NestedTensor absorbed the attention. A "dying topic" detector tells you to avoid that module. A gap detector tells you it is the best contribution target in the repo. Same data, inverted conclusion, and only the second one is worth putting on a slide.
+The top-right cell is the entire product. `torch/masked` sits in it: demand persists, resolution capacity fell away after 2022, and NestedTensor absorbed the attention. A "dying topic" detector tells you to avoid that module. A gap detector tells you it is the best contribution target in the repo. Same data, inverted conclusion, and only the second one is worth reporting.
 
 So: the proposal's instinct is right, and stating it as a two-axis rollup rather than an accumulated probability is what makes it a product rather than a statistic.
 
@@ -282,7 +282,7 @@ Two gates. The rollup is descriptive (realized inflow × realized R1 rates). The
 | `extractor_version` differs from the trained artifact's | refuse Block 6 / score |
 | Observation window < 2 × horizon (360d for a 180d horizon), or unknown | refuse — implemented |
 
-**Apertus hits shared refusals.** Seven threads on 1.5, no path, no elapsed window. It refuses rollup and score, on stage, with both reasons printed. the strategy note already argued that refusing to score Apertus is a better demo than scoring it, and this makes the refusal mechanical rather than a judgement call.
+**Apertus hits shared refusals.** Seven threads on 1.5, no path, no elapsed window. It refuses rollup and score, with both reasons printed. The strategy note already argued that refusing to score Apertus is more honest than scoring it, and this makes the refusal mechanical rather than a judgement call.
 
 ---
 
@@ -290,20 +290,18 @@ Two gates. The rollup is descriptive (realized inflow × realized R1 rates). The
 
 No change to the plan in the strategy note: dump the trees to text, walk them in ~60 lines of pure Python, no `lightgbm`, `onnxruntime` or NumPy in the core install. Training lives in a separate repo that is never in the wheel. Model artifacts ship as Release assets, cached under `~/.cache/consta/models/`, version pinned in the profile YAML so a stale model is as visible as a stale profile.
 
-The LLM extractor is a *runtime* dependency for live scoring, which is new and needs a decision: either the extracted fields are computed at assess time (costs a call per item, needs a key — breaks the keyless demo path Track B W3 is protecting), or the Blocks 1–4 model is the shipped default and Block 6 is opt-in behind `--extract`. **Default to the second.** The keyless `uvx consta assess` line is worth more to the talk than a few points of Brier.
+The LLM extractor is a *runtime* dependency for live scoring, which is new and needs a decision: either the extracted fields are computed at assess time (costs a call per item, needs a key — breaks the keyless path), or the Blocks 1–4 model is the shipped default and Block 6 is opt-in behind `--extract`. **Default to the second.** A keyless `uvx consta assess` is worth more than a few points of Brier.
 
 ---
 
-## 9. What fits before 22 October, and what does not
+## 9. Scope for v1
 
-Straight version first: **this reopens a decision that was closed.** the delivery roadmap Gate 0 accepted "vital signs before model" and put prediction after the talk. Eight weeks remain, Track B (PyPI) is the hard dependency and is not done, and Tracks D (slides, rehearsal) and A (maintainer conversations) are both calendar-bound. Four weeks of modelling has to come out of something. The only honest candidates are Track E (already optional, already deferred at W2) and the W6 GitHub Action. Cutting slides or rehearsal to build a model is how a talk fails.
-
-If that trade is acceptable, this is the cut that is genuinely buildable and backtestable:
+Prediction reopens a decision that was closed: the roadmap accepted "vital signs before model". Building it means deferring other work (the GitHub Action was the one cut). This is the cut that is genuinely buildable and backtestable:
 
 **In scope for v1 (`topic-hazard-v1`)**
 
 - One corpus: 30–50 large Python repos with real module structure. Not "a few hundred".
-- REST-only point-in-time reconstruction (timeline + reactions endpoints). **No GH Archive.** This is the single biggest saving and it is what makes the deadline plausible.
+- REST-only point-in-time reconstruction (timeline + reactions endpoints). **No GH Archive.** This is the single biggest saving and it is what makes v1 feasible.
 - Blocks 1–4 fully; Block 5 in reduced form (git-log trends only, no LLM-derived alternative mentions); Block 6 on a subsample, for the ablation.
 - Discrete-time hazard, weekly, 26-week cap, R1 vs R2 vs censored.
 - Walk-forward, 4 folds, purged. Both headline numbers.
@@ -316,22 +314,13 @@ If that trade is acceptable, this is the cut that is genuinely buildable and bac
 - Hub items in training. Hub discussions score at inference only, and the report must say the model was not trained on them.
 - Anything at 70B+ or a neural sequence model.
 
-**Week shape.** Do not use this table as the calendar. Modelling is 14 Sep – 4 Oct with a 5–11 Oct buffer; Track B and model-independent slides finish 13 Sep. See the delivery roadmap §"Decision 2026-08-28".
+**Kill criterion, pre-committed in writing.** If the model does not beat the vital-signs baseline on Brier at 90 days on the grouped-by-repo folds, ship the deterministic scorecard and state plainly that the model did not earn its place. That is the same argument the whole project makes, applied to its own work. Pre-committing to it is what makes it credible.
 
-| Window | Work | Verify |
-|---|---|---|
-| to 13 Sep | Track B + slides that do not need the model | `uvx consta --help`; deck runs without a hazard number |
-| 14 Sep – 4 Oct | Corpus, labels, person-period, baselines, hazard, ablation | Kill criterion in writing Saturday 4 Oct |
-| 5 – 11 Oct | Buffer: rollup wiring / export, or empty | A slipping model stops here, not in rehearsal week |
-| 12 – 18 Oct | Live `torch/masked` quadrant, reports, rehearsal | Frozen Saturday 18 Oct |
-
-**Kill criterion, evaluated Saturday 4 October in writing.** If the model does not beat the vital-signs baseline on Brier at 90 days on the grouped-by-repo folds, ship the deterministic scorecard and say on stage that the model did not earn its place. That is a *better* talk than a marginal model — it is the same argument the whole session makes, applied to your own work, and it costs nothing to say. Pre-committing to it now is what makes it sayable in October. Do not learn this after spending the slack and with slides unwritten.
-
-**What the talk must not claim, in any version.**
+**What Consta must not claim, in any version.**
 
 - Not "we predict whether a feature will survive". It is a resolution-hazard forecast on a topic, over 180 days, with an interval.
 - Not that the model is novel because prediction is novel. It is not — repo-level abandonment prediction is a published area with production tooling. The claim is *module and topic level*, which the literature explicitly does not cover, plus competing risks and the displacement feature.
-- Not that it ran on Apertus. It refuses on Apertus, deliberately, and that is the slide.
+- Not that it ran on Apertus. It refuses on Apertus, deliberately, and says why.
 - No number without its interval and its refusal rule visible next to it.
 
 ---
@@ -342,6 +331,6 @@ If that trade is acceptable, this is the cut that is genuinely buildable and bac
 - Does item→topic assignment reach usable precision on `torch/masked`? If not, v1 is a per-issue tool and the topic rollup waits.
 - Body edits are not retrievable per-version through the API. How much does that contaminate Block 1, and is it worth measuring on a sample?
 - The affect/tonality field: keep it for the ablation even though it is expected to rank low, or drop it and save the schema complexity?
-- Prior art on issue resolution-time prediction is well covered in the MSR literature and has **not** been surveyed for this file. Do that **before 14 Sep** — the strategy note §"Prior art" surveyed the repo-level abandonment work, not this. Checkbox in the delivery roadmap Decision 2026-08-28.
+- Prior art on issue resolution-time prediction is well covered in the MSR literature and has **not** been surveyed for this file. The strategy note §"Prior art" surveyed the repo-level abandonment work, not this. Checkbox in the delivery roadmap Decision 2026-08-28.
 
 

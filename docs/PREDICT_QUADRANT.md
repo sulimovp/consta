@@ -10,7 +10,7 @@ Written 2026-08-24. Follows the three fixes in the prior brief, which have lande
 
 ## 1. Fix the inflow overlap before building on it
 
-`demand_from_inflow(inflow_3m, inflow_12m)` divides by 3 and 12 and compares. The 12-month window *contains* the 3-month window, so the recent quarter is inside its own baseline and a genuine surge is damped toward 1.0. Mild, but the slide is going to be built on this ratio and it is cheaper to fix now.
+`demand_from_inflow(inflow_3m, inflow_12m)` divides by 3 and 12 and compares. The 12-month window *contains* the 3-month window, so the recent quarter is inside its own baseline and a genuine surge is damped toward 1.0. Mild, but the rollup is built on this ratio and it is cheaper to fix now.
 
 Change `quadrant.py` to take rates directly, matching `supply_from_r1_rates` which already does:
 
@@ -113,7 +113,7 @@ Every failure appends to `fetch_errors` and leaves the corresponding field `None
 
 ## 3. Assignment precision — the one piece of genuinely new work
 
-`PREDICT.md` §3 requires item→topic assignment precision to be measured before any rollup renders. It is a hand-check, not code, and it is what actually gates the October slide.
+`PREDICT.md` §3 requires item→topic assignment precision to be measured before any rollup renders. It is a hand-check, not code, and it is what actually gates the rollup.
 
 ### 3.1 Ground truth
 

@@ -27,7 +27,7 @@ Shared findings that we inherit, not reinvent:
 - **Displacement** — adjacent module rising while this one falls (NestedTensor pattern).
 - **Refusal** when the window or assignment precision cannot support a score (Apertus path).
 
-If a slide says "nobody predicts issue resolution," that slide is wrong. The honest line is:
+Any claim that "nobody predicts issue resolution" is wrong. The honest line is:
 issue-level time-to-fix is crowded; **topic-level competing-risk hazard with displacement
 and explicit refusal** is the gap we are testing.
 
