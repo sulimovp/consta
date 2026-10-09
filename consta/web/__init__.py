@@ -1,1 +1,1 @@
-"""Flask + Bootstrap web UI for Arraxis Consta."""
+"""Flask + Bootstrap web UI for Consta."""

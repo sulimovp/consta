@@ -4,7 +4,7 @@ cases:
   - id: pytorch-masked
     label: "PyTorch — torch.masked"
     blurb: >
-      Arraxis reference case. Tier 2 pulls golden issues (#89734, #89320, #124964),
+      Reference case. Tier 2 pulls golden issues (#89734, #89320, #124964),
       dev-discuss (pinned + search), adjacent NestedTensor/FlexAttention, and merged PRs.
     question: "Is reviving torch.masked / MaskedTensor worth an upstream contribution?"
     repo: pytorch/pytorch

@@ -1,6 +1,6 @@
 # Consta implementation status (August 2026)
 
-Living snapshot of what is built vs what the Consta product backlog still tracks as backlog. Checkboxes in `the product backlog` change only when a human confirms acceptance.
+Living snapshot of what is built and what is still open.
 
 ## Shipped
 
@@ -41,7 +41,7 @@ Live reports regenerated via [`scripts/run_sample_assessments.sh`](../scripts/ru
 | Live smoke (`test_live.py`) | `CONSTA_RUN_LIVE=1` | Yes |
 | Sample report regen | `run_sample_assessments.sh` | Yes |
 
-## Phase mapping (the Consta product backlog)
+## Phase mapping
 
 | Phase | Status |
 |-------|--------|

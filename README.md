@@ -11,8 +11,6 @@ uvx consta assess -q "…" -r pytorch/pytorch -p torch/masked --no-synthesis
 
 **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Step-by-step walkthrough with real reports:** [examples/](examples/README.md)
 
-Product backlog and delivery dates live in the private Arraxis planning workspace, not in this tree.
-
 ## Install (dev)
 
 ```bash
