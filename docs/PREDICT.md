@@ -1,336 +1,395 @@
-# Predict — topic trajectory from issue-level survival
+# Topic forecast: design
 
-Written 2026-08-24. Mechanism spec for topic-hazard prediction.
+Written 2026-08-24, updated since. Design for predicting whether issues on a topic get
+resolved, and for summarising a topic's trajectory. The parts that are built are
+described in [PREDICT_QUADRANT.md](PREDICT_QUADRANT.md); status is in [STATUS.md](STATUS.md).
 
-This exists because the current `vitals-logistic-v0` is not a model — it is nine hand-set constants over eight features, three of which are broken (project notes, 2026-08-23 ×3). Calling it ML in a project that exists to argue against confident unsourced verdicts is the exact failure it is built to prevent.
+The starting point was `vitals-logistic-v0`: nine hand-set constants over eight
+vital-signs features, three of them broken. It is not a model and is no longer printed.
 
----
+## 1. Constraints from the Apertus case
 
-## 1. What the Apertus run actually produced
+The Apertus run (Hugging Face Hub discussions on `swiss-ai` models) used retrieval,
+rule-based ranking and an LLM summary. No forecast ran: the profile has no path, so vital
+signs never fired. Three properties of that evidence shape the design:
 
-Worth being precise, because it constrains everything below.
+- Small. Seven threads on `Apertus-v1.5-8B`, 33 on `Apertus-8B-Instruct-2509`. A
+  per-topic statistic over seven items has a standard error larger than the effect.
+- Young. The 1.5 weights were a month old, so there is no history to reconstruct and
+  no elapsed outcome window to label.
+- Decided by one item. The answer depended on draft PR
+  [#5](https://huggingface.co/swiss-ai/Apertus-v1.5-8B/discussions/5) and a `transformers`
+  doc page that still said "Coming soon". No average over the threads would have shown
+  that. Better ranking surfaced it.
 
-| Layer | Mechanism | Ran on Apertus? |
+So for young or thin ecosystems, ranking and showing items beats scoring and
+aggregating. The model below is for corpora like PyTorch with years of resolved history.
+For Apertus it refuses.
+
+## 2. Design decisions
+
+### 2.1 An LLM extracts features; a tabular model predicts
+
+The LLM turns issue text into a few schema-constrained fields. A tabular model, which can
+be calibrated, backtested and inspected, makes the prediction. The LLM never produces the
+result, in the same way the citation check keeps the summary tied to quotes.
+
+- Stance over sentiment. Sentiment on issue text mostly tracks issue type (bug reports
+  read negative, feature requests positive). The useful fields describe the request and
+  the response: what is asked, whether there is a reproducer, whether a maintainer
+  replied and what they committed to. `maintainer_stance ∈ {none, acknowledged, planned,
+  deferred, declined, needs_info}` is expected to be the strongest extracted field. One
+  `affect` field (0–2) is kept and expected to rank low.
+- A pinned extractor. If the extraction model or prompt changes between training rows
+  and test rows, a temporal split measures extractor drift and reports it as signal.
+  Every extracted row stores `extractor_version` (model id, prompt hash, schema version),
+  and any change forces full re-extraction. A router alias such as
+  `gpt-oss-120b:fastest` can move and is not a pin. Current pin, captured 2026-08-30
+  ([docs/hf_snapshot/](hf_snapshot/README.md)):
+  - Hub revision of `openai/gpt-oss-120b`: `b5c939de8f754692c1647ca79fbf85e8c1e70f8a`
+  - Router id: `openai/gpt-oss-120b:groq` (the router does not accept a revision)
+  - `extractor_version` model id:
+    `openai/gpt-oss-120b:groq@b5c939de8f754692c1647ca79fbf85e8c1e70f8a`
+    (`PINNED_EXTRACTOR_MODEL_ID` in `predict/extractor.py`)
+
+  `CONSTA_LLM_MODEL` must be the router id; rows extracted with `:fastest` are unusable.
+  The runner is `python -m consta.predict.extract_run`.
+- Reactions from the list endpoint. `GET /repos/{o}/{r}/issues/{n}/reactions` returns
+  each reaction with its own `created_at` (checked against the REST docs on 2026-08-24),
+  so counts at time *T* can be reconstructed. The `reactions` summary on the issue
+  object is current state and leaks the future.
+
+### 2.2 Target: competing risks, not "closed"
+
+An issue closes either because it was resolved (a merged change, an answer, a design
+decision) or because it was closed administratively (stale bot, duplicate, wontfix, no
+response). The two mean opposite things for a topic, and declining modules produce many
+administrative closures: backlogs get swept and stale bots get enabled when nobody
+triages. A model trained on "closed" would rate a declining module as healthy.
+
+Outcomes:
+
+- R1, resolved. Closed with a linked merged PR or commit touching the topic's paths;
+  closed by a maintainer comment that the extractor labels as an answer; or, on the Hub,
+  a merged PR on the repo.
+- R2, closed administratively. Stale, duplicate, wontfix or invalid label at close,
+  closed by a bot, or closed with no linked code and no maintainer answer. Repositories
+  that do not use `fixes #N` will have real fixes counted as R2. This is controlled by
+  `unlabeled_closed_as_r2` (on by default), and the false-R2 rate is measured by hand.
+- R3, censored. Still open at the end of the window.
+
+The model predicts the hazard of R1. R2 is a competing event. Dropping R2 rows would
+inflate the R1 estimate on exactly the declining topics.
+
+### 2.3 Rollup: two axes, not one score
+
+For items whose window has passed, the outcome is known. Averaging model predictions over
+them replaces data with a smoothed function of the features. A survival estimator uses
+known outcomes where they exist and the model only for items still open.
+
+A single "alive or dying" score also loses the distinction that matters to a
+contributor. The rollup uses two axes:
+
+- Demand: inflow of substantive issues on the topic (support questions excluded via
+  the extracted `intent`), last 6 months against the 18 months before. Compared with
+  Poisson rate intervals; refused when a window has too few issues.
+- Supply: the R1 rate, and later the restricted mean time to R1 at 180 days (defined
+  under censoring), with its trend.
+
+| | Supply rising | Supply falling |
 |---|---|---|
-| Retrieval | Hub discussions API, adjacent projects, repo files | Yes |
-| Ranking | `_relevance_score` — rule-based synonym + keyword + engagement | Yes |
-| Synthesis | `gpt-oss-120b:fastest` via HF router | Yes |
-| Activity forecast | Hand-set logistic on eight vital-signs features | **No** — `path_hints: {}`, no `--path`, vitals never fired |
+| **Demand rising** | Thriving | Gap: a contribution target |
+| **Demand falling** | Maturing | Dying |
 
-So the Apertus result is retrieval + ranking + prose. No prediction happened, and the report is correct not to contain any.
-
-Three properties of that evidence shape matter for the model design:
-
-**It is tiny.** Seven threads on `Apertus-v1.5-8B`, thirty-three on the 1.0-era `Apertus-8B-Instruct-2509`. Any per-topic statistic over seven items has a standard error wider than the effect you are trying to measure.
-
-**It is young.** The 1.5 weights are one month old. There is no history to reconstruct a point-in-time snapshot from, and no elapsed outcome window to label.
-
-**The answer came from one artifact, not from an aggregate.** The redundancy question turned on draft PR [#5](https://huggingface.co/swiss-ai/Apertus-v1.5-8B/discussions/5) and the `transformers` doc page still saying "Coming soon". No average over the thread set would have surfaced that; the fix logged in project notes was to *rank* better, not to *score* harder.
-
-That last point is the strongest constraint on this whole design and it is stated up front so it is not lost: **for young or thin ecosystems, rank-and-surface beats score-and-aggregate.** The model below is for PyTorch-shaped corpora with years of resolved history. Apertus is where it refuses, and the refusal is more useful than a number would be.
-
----
-
-## 2. Verdict on the proposed design
-
-The proposal has three parts. One is right, two need reformulating before they will hold.
-
-### 2.1 LLM as feature extractor, small model on top — right, with three corrections
-
-This is the correct architecture and it is worth saying why, because it is the part that survives contact with the project's own thesis: the LLM converts unstructured text into a small number of schema-constrained fields; a tabular model that can be calibrated, backtested and traced does the prediction. The LLM never issues the verdict. That is the same separation the citation checker enforces on prose.
-
-Three corrections:
-
-**Tonality is the weakest field on the list.** Sentiment on issue text is confounded with issue *type* — bug reports read as negative, feature requests as positive — and it is what everybody reaches for first. The fields that will actually carry signal are speech-act and stance: what kind of request is this, does it contain a reproducer, does a maintainer reply and what does that reply commit to. `maintainer_stance ∈ {none, acknowledged, planned, deferred, declined, needs_info}` will almost certainly dominate every other extracted field. Keep one affect field, at ordinal 0–2, and expect it to rank low.
-
-**A drifting extractor destroys an out-of-time backtest.** If the extraction model or prompt changes between building the training rows and building the test rows, the temporal split measures extractor drift and reports it as signal. The extractor version is a pinned string, stored as a column on every extracted row, and any change to model, prompt or schema forces full re-extraction. `gpt-oss-120b:fastest` behind an HF router alias is *not* a pin — the alias can move.
-
-Pinned 2026-08-30 (last Pro day; Hub lookup in `docs/hf_snapshot/`):
-
-- Hub revision of `openai/gpt-oss-120b`: `b5c939de8f754692c1647ca79fbf85e8c1e70f8a` (`lastModified` 2025-08-26).
-- Router id: `openai/gpt-oss-120b:groq` (groq was live on the catalog snapshot; `:fastest` is routing, not a model). The router does not take `@sha`.
-- `extractor_version` model id: `openai/gpt-oss-120b:groq@b5c939de8f754692c1647ca79fbf85e8c1e70f8a` (`predict/extractor.py` `PINNED_EXTRACTOR_MODEL_ID`).
-
-`CONSTA_LLM_MODEL` must be the router id. Any extraction row made against `:fastest` is scrap. The runner is `python -m consta.predict.extract_run`.
-
-**Reaction counts are salvageable, but only via the right endpoint.** `GET /repos/{o}/{r}/issues/{n}/reactions` returns one object per reaction carrying its own `created_at` — verified against the GitHub REST docs on 2026-08-24 — so reaction counts *are* reconstructable as of time *T* by filtering `reaction.created_at <= T`. The aggregate `reactions` block on the issue object is current-state and is a leak. Use the list endpoint, never the summary count. This is a real find: it removes the reason to drop the feature.
-
-### 2.2 "Probability the issue is closed within X days" — reformulate the target
-
-Closure is confounded in exactly the direction that breaks the product.
-
-An issue closes for two very different reasons. It is *substantively resolved* — a merged PR touches the code, a maintainer answers the question, a design lands. Or it is *administratively closed* — stale bot, duplicate, wontfix, no-response, locked. These have opposite meanings for topic health, and dying modules generate the second kind at a high rate: backlogs get swept, stale bots are enabled precisely when nobody is triaging. A model trained on "closed" will learn that mass-closure predicts closure, score a dying module as healthy, and be most wrong exactly where the product's value is.
-
-This is the same class of error as the mechanical-commit contamination the strategy note already flags on the positive class. Same fix, different table.
-
-Replace the binary target with **competing risks**:
-
-- **R1 — substantive resolution.** Closed with a linked merged PR or commit touching the topic's paths; or closed by a maintainer comment that the extractor labels as an answer; or, for Hub, a merged PR on the repo.
-- **R2 — administrative closure.** Stale/duplicate/wontfix/invalid label at close, close by bot account, close with no linked code and no maintainer answer. Repos without `fixes #N` discipline may misclassify genuine fixes as R2 — treat that default as a **flag** (`unlabeled_closed_as_r2`, default on) and report false-R2 rate in the W3 hand-check.
-- **R3 — censored.** Still open at the end of the observation window.
-
-The quantity to predict is the hazard of R1. R2 is a competing event, not a positive, and not a row to delete — deleting it biases the R1 estimate upward on precisely the dying topics.
-
-### 2.3 "Accumulate probabilities per topic" — reformulate the rollup
-
-Two problems, one technical and one about what the product is for.
-
-**Do not average predictions where you have outcomes.** For any issue whose window has elapsed you know what happened. Averaging model probabilities over those items produces a smoothed function of the features, not an estimate of topic health, and it inherits every model error without inheriting any of the data. The model earns its place only on the items that have *not* resolved yet — the censored ones. A survival estimator does this composition for you correctly: realized outcomes where they exist, modelled hazard where they do not.
-
-**A scalar "perspective vs dying" score throws away the distinction Consta exists to make.** The product question is *should this feature exist upstream*, and the answer is not "the topic is alive". Split the rollup on two axes:
-
-- **Demand** — inflow of substantive items on the topic (support questions excluded via the extracted `intent` field), 6-month rate against the preceding 18 months (24-month lookback, non-overlapping). Compare Poisson rate intervals, not a bare ratio; refuse when a window is below a minimum count.
-- **Supply** — hazard of R1 resolution, summarised as restricted mean time to substantive resolution at 180 days (RMST, which is defined under censoring), and its trend.
-
-|  | Supply rising | Supply falling |
-|---|---|---|
-| **Demand rising** | Thriving — upstream is on it | **Gap — contribute here** |
-| **Demand falling** | Maturing / solved | Dying |
-
-The top-right cell is the entire product. `torch/masked` sits in it: demand persists, resolution capacity fell away after 2022, and NestedTensor absorbed the attention. A "dying topic" detector tells you to avoid that module. A gap detector tells you it is the best contribution target in the repo. Same data, inverted conclusion, and only the second one is worth reporting.
-
-So: the proposal's instinct is right, and stating it as a two-axis rollup rather than an accumulated probability is what makes it a product rather than a statistic.
-
----
+`torch/masked` is expected in the top-right cell: demand persists, resolution fell after
+2022, and NestedTensor took the attention. A "dying topic" detector would say to avoid
+the module; the two-axis view says it is where a contribution is most needed.
 
 ## 3. Unit of prediction
 
-Two units, chained.
+- Item: an issue or Hub discussion, observed weekly from creation until R1, R2 or
+  censoring, for at most 26 weeks. The model works at this level.
+- Topic: a `(repo, topic, T)` triple. Topics come from the profile: path prefixes on
+  GitHub (`torch/masked`), synonym clusters on the Hub. The report speaks at this level.
 
-**Item level** — a GitHub issue or Hub discussion, observed weekly from creation until R1, R2, or censoring, capped at 26 weeks. This is where the model lives.
-
-**Topic level** — a `(repo, topic, T)` triple. Topics come from the profile: path prefixes for GitHub (`torch/masked`), synonym clusters for Hub (`apertus format`, `tool use`). This is where the report speaks.
-
-Item→topic assignment is a source of error and must be measured, not assumed. Assign by path mentions in title and body, paths touched by linked PRs, and profile synonym hits. **Verify: hand-label 100 issues across three repos, report precision and recall of the assignment, and put both numbers in the report footer.** If assignment precision is below ~0.8 the topic rollup is measuring the wrong issues and nothing downstream is trustworthy.
-
----
+Issues are assigned to topics by path mentions in title and body, paths touched by linked
+PRs, and profile synonyms. Assignment errors propagate into everything downstream, so
+precision and recall are measured on hand-labelled issues and printed with the rollup.
+Below about 0.8 precision, the rollup refuses.
 
 ## 4. Model
 
-**Discrete-time competing-risks hazard, weekly periods.** Expand each item into one row per week alive. Each row carries `exposure_days` (≤7; partial final weeks clip at `observation_end`). Train **two** hazard models on the same person-period table — `h1_j` for R1 in week j and `h2_j` for R2 in week j — or one multinomial head with three outcomes (R1 / R2 / still-at-risk). R2 is a competing event, not censoring; do not compose with `1 - Π(1 - h1_j)` alone, which treats administrative closure as if the issue could still resolve later.
+Discrete-time competing-risks hazard with weekly periods. Each item becomes one row
+per week at risk, with `exposure_days` (at most 7; the last week of a censored item is
+clipped at `observation_end`). Two hazard models are trained on the same table, `h1_j`
+for R1 and `h2_j` for R2 in week *j*, or one multinomial head with three outcomes.
+Composing with `1 − Π(1 − h1_j)` alone would treat R2 as censoring.
 
-The cumulative incidence of substantive resolution by week k is:
+Cumulative incidence of R1 by week *k*:
 
 `CIF₁(k) = Σ_{j≤k} h1_j · Π_{i<j}(1 − h1_i − h2_i)`
 
-That is the quantity to report as “P(resolved by week k)”. RMST and trend summaries derive from this curve, not from a Kaplan–Meier complement that ignores R2.
+This is what "probability resolved by week *k*" means in a report. Restricted mean time
+and trend summaries derive from this curve, not from a Kaplan–Meier complement that
+ignores R2.
 
-**Training contract.** Every person-period row carries `exposure_days` (≤ 7; the final week of a censored item clips at `observation_end`). It must reach the model as a log-exposure offset — `log(exposure_days / 7)` via LightGBM `init_score` — or as a row weight of `exposure_days / 7`. A clipped week trained as a full week reintroduces the downward hazard bias that clipping removes, and the bias falls hardest on the most recent items, which are the ones a report is actually about. `to_training_row()` in `predict/person_period.py` is the canonical emitter; W3 uses it rather than reading the dataclass directly.
+`exposure_days` must reach the model as a log-exposure offset (`log(exposure_days / 7)`
+via LightGBM `init_score`) or as a row weight of `exposure_days / 7`. Treating a clipped
+week as a full one biases the hazard down, most of all on the newest items.
+`to_training_row()` in `predict/person_period.py` produces training rows.
 
-Why this shape:
+Reasons for this shape:
 
-- It answers "closed within X days" for *any* X from one model, which is what the original proposal wanted, without training a separate classifier per horizon.
-- It handles censoring correctly, which matters because the freshest and most decision-relevant items are always the censored ones. the strategy note already reached this conclusion for the module-level framing; it applies unchanged here.
-- It is a plain binary classifier on an expanded table, so LightGBM works out of the box, no `lifelines` dependency, and the tree dump → pure-Python scorer export path stays intact.
+- One model answers "resolved within X days" for any X.
+- It handles censoring, and the newest, most relevant items are always censored.
+- It is a binary classifier on an expanded table: LightGBM works directly, there is no
+  `lifelines` dependency, and trees can be exported to a pure-Python scorer.
 
-Row count is manageable: ~40k issues × ~8 weeks mean survival ≈ 320k rows.
+Size: about 40,000 issues × 8 weeks mean survival ≈ 320,000 rows.
 
-**Baselines, evaluated on identical folds** — without these "the model beat the baseline" is unfalsifiable:
+Baselines, on the same folds:
 
-1. Base rate per repo (the null).
-2. The deterministic vital-signs decision rule, given an explicit threshold.
-3. Discrete-time logistic on Blocks 1–4 only, i.e. no LLM features.
+1. Base rate per repository.
+2. The vital-signs decision rule with an explicit threshold.
+3. Discrete-time logistic regression on blocks 1–4 only, without LLM features.
 
-Baseline 3 is the one that matters. **The with/without-Block-6 ablation is the experiment that decides whether LLM feature extraction earns its cost**, and reporting a null result there is a good outcome, not a failure.
+Baseline 3 decides whether LLM extraction is worth its cost. A null result there is a
+valid outcome.
 
-**Calibration is the metric.** Report time-dependent Brier score and integrated Brier, calibration slope at 30/90/180 days, and a per-fold reliability diagram. C-index may be reported but is rank-only and invariant to calibration; it does not decide anything. A number that goes next to a citation must be calibrated or it is a verdict with extra steps.
+Metrics. Time-dependent and integrated Brier score, calibration slope at 30, 90 and
+180 days, and a reliability diagram per fold. C-index only measures ranking and does not
+decide anything. A number printed next to citations has to be calibrated.
 
----
+## 5. Features and leakage
 
-## 5. Feature blocks and leak audit
+Each feature is listed with how it is reconstructed as of time *T* and what could leak
+into it. For item-level features the GitHub REST API is already point-in-time: the
+timeline endpoint (`/issues/{n}/timeline`) and the reactions list both give a
+`created_at` per event (checked 2026-08-24), so filtering by `created_at <= T`
+reconstructs a thread at *T* without GH Archive. GH Archive would still be needed for
+repository history and author priors, and is out of scope for v1.
 
-the strategy note requires one line per feature stating how it is reconstructed at *T* and which field could contaminate it. That table is the deliverable, not an appendix — it is what makes the backtest believable.
+### Block 1: item, at creation
 
-The scope cut that makes this affordable: **for item-level features, the GitHub REST API is already point-in-time.** `GET /repos/{o}/{r}/issues/{n}/timeline` returns every event with its own `created_at`, and the reactions list endpoint does the same (both verified 2026-08-24). Filtering both by `created_at <= T` reconstructs thread state at *T* without GH Archive. GH Archive is still needed for repo-level history and author priors — and is deferred out of v1 on that basis.
-
-### Block 1 — item intrinsic (at creation)
-
-| Feature | Reconstruction at *T* | Contamination risk |
+| Feature | Reconstruction at *T* | Leakage risk |
 |---|---|---|
 | `age_days` | `T - created_at` | none |
-| `body_len`, `title_len` | issue body at creation | edits are not versioned via API — accept, note |
-| `has_code_block`, `has_traceback`, `has_version_info` | regex on body | same edit caveat |
+| `body_len`, `title_len` | body at creation | edits are not versioned in the API; accepted |
+| `has_code_block`, `has_traceback`, `has_version_info` | regex on body | same |
 | `is_pull_request` | issue object | none |
-| `n_linked_refs` | timeline `cross-referenced` events ≤ *T* | **use timeline, not current refs** |
+| `n_linked_refs` | timeline `cross-referenced` events ≤ *T* | current references leak; use the timeline |
 
-### Block 2 — author, point-in-time
+### Block 2: author, as of *T*
 
-| Feature | Reconstruction at *T* | Contamination risk |
+| Feature | Reconstruction at *T* | Leakage risk |
 |---|---|---|
-| `author_prior_issues` | search `author:X created:<T` | rate-limit heavy; cache per author-quarter |
-| `author_prior_merged_prs` | same, `is:pr is:merged` | as above |
-| `author_is_maintainer_at_T` | CODEOWNERS blob at the commit that was HEAD at *T* | **reading CODEOWNERS from `main` today is a leak** |
-| `author_is_bot` | login suffix + curated list | bot lists change; pin the list version |
+| `author_prior_issues` | search `author:X created:<T` | rate limits; cache per author and quarter |
+| `author_prior_merged_prs` | same, `is:pr is:merged` | same |
+| `author_is_maintainer_at_T` | CODEOWNERS at the commit that was HEAD at *T* | CODEOWNERS from today's `main` leaks |
+| `author_is_bot` | login suffix and a curated list | pin the list version |
 | `author_account_age` | user `created_at` | none |
 
-### Block 3 — engagement, strictly ≤ *T*
+### Block 3: engagement up to *T*
 
-| Feature | Reconstruction at *T* | Contamination risk |
+| Feature | Reconstruction at *T* | Leakage risk |
 |---|---|---|
-| `n_comments_le_T` | timeline `commented` events ≤ *T* | issue `comments` count is current-state — **never use it** |
-| `n_participants_le_T` | distinct actors in timeline ≤ *T* | as above |
-| `maintainer_replied_le_T` | intersect participants with `MaintainerSet(logins, as_of)` where `as_of <= T` | double leak if either side is read as-of-now; bare `set[str]` is not allowed in code |
-| `hours_to_first_maintainer_reply` | first such event | undefined if none — encode as missing, not 0 |
-| `reactions_{+1,heart,eyes,-1}_le_T` | reactions list endpoint, filter `created_at <= T` | the summary `reactions` block is current-state — **leak** |
-| `label_set_at_T` | timeline `labeled`/`unlabeled` replay | current labels are the single most tempting leak in the dataset |
+| `n_comments_le_T` | timeline `commented` events ≤ *T* | the issue's `comments` count is current state |
+| `n_participants_le_T` | distinct actors in the timeline ≤ *T* | same |
+| `maintainer_replied_le_T` | participants ∩ `MaintainerSet(logins, as_of)` with `as_of <= T` | leaks if either side is read as of now; code does not accept a bare `set[str]` |
+| `hours_to_first_maintainer_reply` | first such event | missing if none, not 0 |
+| `reactions_{+1,heart,eyes,-1}_le_T` | reactions list, `created_at <= T` | the `reactions` summary is current state |
+| `label_set_at_T` | replay `labeled` and `unlabeled` events | current labels are the easiest leak to make |
 
-### Block 4 — topic context at *T*
+### Block 4: topic at *T*
 
-| Feature | Reconstruction at *T* | Contamination risk |
+| Feature | Reconstruction at *T* | Leakage risk |
 |---|---|---|
-| `commits_topic_3m/6m/12m` | `git log --before=T -- <paths>` on a local clone | **log1p, not raw** — raw counts are what saturate v0 to p=1.0 |
+| `commits_topic_3m/6m/12m` | `git log --before=T -- <paths>` on a local clone | use `log1p`; raw counts saturated v0 |
 | `distinct_committers_12m` | same | none |
 | `top_committer_active_6m` | same | none |
-| `open_backlog_size_at_T` | replay open/close events | current open count is a leak |
+| `open_backlog_size_at_T` | replay open and close events | today's open count leaks |
 | `median_backlog_age_at_T` | same | same |
-| `inflow_3m / inflow_12m` | issue `created_at` histogram before *T* | none — this is the demand axis |
-| `realized_R1_rate_prior_12m` | outcomes of items closed *before T* | safe by construction; do not let the window cross *T* |
-| `has_codeowners_at_T` | blob at HEAD-as-of-*T* | as Block 2 |
+| `inflow_recent / inflow_baseline` | issue `created_at` before *T*, 6 and 18 months | none; this is the demand axis |
+| `realized_R1_rate_prior` | outcomes of items closed before *T* | the window must not cross *T* |
+| `has_codeowners_at_T` | blob at HEAD as of *T* | as in block 2 |
 | `topic_in_release_notes_6m` | releases with `published_at < T` | none |
 
-`closure_rate` from the current implementation is **deleted**, not fixed. It is the ratio of two independently capped 30-item result sets and equals 0.5 on any repo with more than thirty of each (project notes, 2026-08-23). `realized_R1_rate_prior_12m` is its honest replacement.
+The old `closure_rate` is removed. It divided two result sets each capped at 30 items, so
+it was 0.5 on any repository with more than 30 of each. `realized_R1_rate_prior`
+replaces it.
 
-### Block 5 — competitive displacement
+### Block 5: displacement
 
-The one feature the strategy note says is worth building carefully, and the only part of this design that is not in the repo-level literature.
+The part of this design not covered by repository-level prior work.
 
-| Feature | Reconstruction at *T* | Contamination risk |
+| Feature | Reconstruction at *T* | Leakage risk |
 |---|---|---|
-| `adjacent_commit_trend` | same git log, adjacent paths from profile | profile `adjacent_projects` must be pinned per snapshot |
-| `displacement_score` | adjacent rising × self falling | none |
+| `adjacent_commit_trend` | same git log on adjacent paths from the profile | pin the profile's `adjacent_projects` per snapshot |
+| `displacement_score` | adjacent rising × own falling | none |
 | `inflow_ratio_self_vs_adjacent` | issue histograms | none |
-| `names_alternative_rate` | Block 6 field, aggregated over topic | extractor-dependent |
+| `names_alternative_rate` | block 6 field, aggregated over the topic | depends on the extractor |
 
-### Block 6 — LLM-extracted, from thread state ≤ *T*
+### Block 6: LLM-extracted, from the thread up to *T*
 
-Schema-constrained, temperature 0, one JSON object per item. Every field ordinal or categorical — no free text reaches the model.
+Schema-constrained, temperature 0, one JSON object per item. Every field is ordinal or
+categorical; no free text reaches the model.
 
 | Field | Type | Note |
 |---|---|---|
-| `intent` | bug / feature_request / support / docs / design_proposal / integration_report / other | gates the demand axis — support noise is excluded from inflow |
-| `specificity` | 0–3 | vague ↔ reproducer with expected/actual |
+| `intent` | bug / feature_request / support / docs / design_proposal / integration_report / other | Excludes support questions from inflow |
+| `specificity` | 0–3 | From vague to a reproducer with expected and actual output |
 | `proposed_solution_present` | bool | |
-| `patch_offered` | bool | strong positive in most corpora |
-| `blocking_severity` | 0–3 | curiosity ↔ blocking production |
-| `affect` | 0–2 | the "tonality" field; expect it to rank low |
-| `maintainer_stance` | none / acknowledged / planned / deferred / declined / needs_info | from maintainer comments ≤ *T* only; likely the top extracted feature |
+| `patch_offered` | bool | Usually a strong positive |
+| `blocking_severity` | 0–3 | From curiosity to blocking production |
+| `affect` | 0–2 | Expected to rank low |
+| `maintainer_stance` | none / acknowledged / planned / deferred / declined / needs_info | From maintainer comments ≤ *T* only |
 | `scope` | one_line_fix / contained / cross_cutting / requires_design | |
-| `names_alternative` | bool + string | feeds Block 5 |
-| `evidence_span` | verbatim ≤15-word quote | quotable fields only |
-| `evidence_anchor` | closed rubric cell | judged fields: `specificity`, `blocking_severity`, `affect`, `scope` |
+| `names_alternative` | bool and string | Feeds block 5 |
+| `evidence_span` | quote of at most 15 words | Quotable fields only |
+| `evidence_anchor` | cell from a closed rubric | Judged fields: `specificity`, `blocking_severity`, `affect`, `scope` |
 
-Rules that make this survive the backtest:
+Rules:
 
-- **Input is reconstructed, not current.** Body plus comments with `created_at <= T`. Feeding today's thread is the most catastrophic leak available — a comment saying "fixed in #4471" predicts R1 perfectly and teaches the model nothing. The 2026-08-31 pilots did not do this: `extract_run` hashes title+body from the assignment gold YAML, which has no comment list, so `maintainer_stance` is structurally empty until the runner reconstructs comments.
-- **`extractor_version` is a stored column.** Model id, prompt hash, schema version. Changing any forces re-extraction of the whole corpus. Current pin: §2.1 / `docs/hf_snapshot/extractor_pin.json`. Schema `block6-v3` (2026-08-31) — do not resume a v2 JSONL with the v3 runner and call it one study.
-- **Demand-side fields are defined on issues and Hub questions, not pull requests.** Inflow and the person-period table are issues. A PR already carries a patch: `patch_offered` and `proposed_solution_present` are true by construction, and `blocking_severity` scores the defect being fixed (the `--limit 10` v3 smoke was ten PRs; #137890 is that confound). Assignment-gold PRs stay for the assigner eval; they do not enter the Block 6 corpus. `extract_run --kinds` defaults to `issue,hub`. `--stratify` draws across origin×kind so a smoke cannot repeat the prefix-slice mistake.
-- **Extract once per (item, quarter), not per weekly row.** Thread content is near-static between comments; weekly re-extraction multiplies cost by eight for no signal.
-- **Evidence is split.** Presence on quotable fields (`intent`, `proposed_solution_present=true`, `patch_offered=true`, a real `maintainer_stance`, `names_alternative=true`, `names_alternative_text`) still needs a verbatim ≤15-word quote. Absence (`false`, `maintainer_stance=none`) does not: there is nothing to quote. Judged fields (`specificity`, `blocking_severity`, `affect`, `scope`) need a rubric cell from the closed list in `predict/extractor.py`. v2 required a quote for every non-null field and emptied the ordinals (project notes 2026-08-31). v3 quote-on-false (fixed 2026-09-02) was the same mistake on booleans: Gemma filled `false` and the validator discarded 18/20 rows. The 112-row demand-side v3 pilot fills judged ordinals on ~94% of parsed rows; `maintainer_stance` stays ~7% because the gold YAML has no comments. #192516 is `title_only` / `nice_to_have` rather than a quoted title standing in for severity. #137890 (a test-only memory leak) scored `blocks_production`.
-- **Measure the extractor's own reliability before trusting the features.** Re-run extraction on 200 items with a second model and report agreement (Krippendorff's α for ordinals, Cohen's κ for categoricals). A field below α ≈ 0.6 is noise wearing a schema and should be dropped. **Verify: agreement table published in the README alongside the calibration curve.**
-  Not yet bought at n=200. The 2026-08-31 v2 smoke had n=0 on the ordinals. After the
-  2026-09-02 quote-on-false fix, the v3 demand draw (`agreement_2026-09-01_gpt_oss_x_gemma_v3.json`)
-  is overlap 20, valid 19: `intent` κ 0.77 (n=17), `specificity` α 0.81 (n=19),
-  `blocking_severity` α 0.95 (n=18), `scope` κ 0.19 (n=17). `affect` is 0 on almost every
-  row, so α is 0 despite 18/19 exact matches. `maintainer_stance` stays n=1 until comments
-  exist. Gemma remains the second extractor. Do not spend 200 items until `scope` is kept
-  or dropped on purpose, and not until comments ≤ T exist if stance stays in the schema.
-  **Frozen 2026-09-03 at the 112-row demand pilot:** distributions show `affect` is a
-  constant and the ordinals are near-binary (project notes). Buy neither Gemma-200 nor
-  comment reconstruction before Track B (13 Sep) and Track A sends.
+- Input is the thread as of *T*: body plus comments with `created_at <= T`. Feeding
+  today's thread leaks the outcome; a comment saying "fixed in #4471" predicts R1
+  perfectly. The pilots so far used title and body from the gold files, which have no
+  comments, so `maintainer_stance` is nearly always empty until comments are
+  reconstructed.
+- `extractor_version` is stored on every row (§2.1). Current schema: `block6-v3`
+  (2026-08-31). Do not resume a v2 file with the v3 runner and treat it as one study.
+- Issues and Hub questions only. A PR already carries a patch, so `patch_offered` and
+  `proposed_solution_present` are true by construction, and `blocking_severity` rates
+  the defect being fixed (#137890 is an example). PRs in the gold files stay for the
+  assignment evaluation and do not enter block 6. `extract_run --kinds` defaults to
+  `issue,hub`, and `--stratify` samples across source and kind.
+- Extract once per item and quarter, not per weekly row. Threads change little
+  between comments, and weekly extraction would cost eight times as much.
+- Quotes only for presence. A positive value on a quotable field (`intent`,
+  `proposed_solution_present=true`, `patch_offered=true`, a `maintainer_stance` other
+  than none, `names_alternative=true`) needs a quote of at most 15 words. Absence needs
+  none. Judged fields need a rubric cell from the list in `predict/extractor.py`. v2
+  required a quote for every non-null field, which emptied the ordinals; requiring quotes
+  for `false` (fixed 2026-09-02) did the same to booleans.
+- Measure extractor agreement before using the fields. Re-run extraction with a
+  second model and report Krippendorff's α for ordinals and Cohen's κ for categoricals.
+  Fields below α ≈ 0.6 are dropped. Planned at n = 200; measured so far on 19 pairs
+  (gpt-oss against Gemma, `agreement_2026-09-01_gpt_oss_x_gemma_v3.json`): `intent`
+  κ 0.77 (n=17), `specificity` α 0.81 (n=19), `blocking_severity` α 0.95 (n=18), `scope`
+  κ 0.19 (n=17). `affect` agrees on 18 of 19 rows but α is 0 because it is nearly always
+  0. `maintainer_stance` has n=1.
 
-Cost sanity: ~40k items × ~1.5k tokens in, ~300 out, extracted once. On a small hosted model that is tens of dollars, not thousands. It fits.
+Extraction was frozen on 2026-09-03 at the 112-row pilot: `affect` is constant and the
+ordinals are nearly binary. The 200-item agreement run and comment reconstruction are
+on hold until `scope` is kept or dropped. Details: [eval/extraction/](../eval/extraction/README.md).
 
----
+Cost: about 40,000 items × 1,500 tokens in and 300 out, extracted once. On a small
+hosted model that is tens of dollars.
 
-## 6. Evaluation protocol
+## 6. Evaluation
 
-Unchanged from the strategy note — it was right — with two additions for the survival framing.
-
-- **Walk-forward, expanding window**, 4–6 folds. One split gives one number and no variance, and drift matters more than the pooled score.
-- **Purge one full horizon.** Test snapshots begin at least 180 days after the last training snapshot, so training labels have fully resolved before test features are drawn.
-- **Two headline numbers.** Temporal-only (re-scoring a module you have seen — the deployment case) and temporal + grouped-by-repo (a module never seen — the honest headline). Report both; they answer different questions.
-- **New: competing-risk-aware metrics.** Brier and calibration computed against the cumulative incidence of R1, not against "closed". Scoring R1 predictions against a closed/not-closed ground truth silently rewards the confound this design exists to remove.
-- **New: extractor-swap robustness.** Re-run the Block-6 ablation with the second extractor's features. If the gain from Block 6 only exists for one extractor, it is not a finding.
-
----
+- Walk-forward with an expanding window, 4–6 folds. A single split gives one number
+  and no variance, and drift matters more than the pooled score.
+- Purge one horizon. Test snapshots start at least 180 days after the last training
+  snapshot, so training labels have resolved before test features are drawn.
+- Two headline numbers. Temporal split only (scoring a module seen in training, the
+  usual use) and temporal plus grouped by repository (a module never seen). They answer
+  different questions; report both.
+- Metrics against R1. Brier score and calibration are computed against the
+  cumulative incidence of R1, not against closed or open. Scoring against "closed" would
+  reward the confusion §2.2 removes.
+- Extractor swap. Repeat the block-6 ablation with the second extractor's features. A
+  gain that appears with one extractor only is not a result.
 
 ## 7. Refusal rules
 
-Two gates. The rollup is descriptive (realized inflow × realized R1 rates). The score is predictive (CIF over ~180 days) and inherits every rollup refusal.
+The rollup is descriptive: realized inflow and R1 rates. The score is predictive:
+cumulative incidence over about 180 days. The score inherits every rollup refusal.
 
-### Rollup refusals (descriptive)
-
-| Condition | Action |
-|---|---|
-| Any retrieval error in the feature set | refuse — absence of evidence and failed retrieval are different states (project notes, 2026-08-23) |
-| No path-scoped topic (`--path` required) | refuse |
-| Item→topic assignment precision unmeasured for this profile | refuse |
-| `n_resolved_items` unknown after issue-search `total_count` | refuse |
-| `n_resolved_items` on topic < 12 | refuse the topic rollup |
-| Topic first appeared < 12 months before *T* | refuse — path history moves, and `torch/masked` did not exist before Nov 2022 |
-| Hub items present and issue count is zero | refuse — Hub items are inference-only in v1 |
-| Inflow rates (`inflow_3m` / `inflow_12m`) unknown | refuse — cannot place topic on the demand axis |
-| Realized R1 rates (prior 12m / recent) unknown | refuse — cannot place topic on the supply axis |
-| Demand and supply both flat | refuse — no trajectory to report (`Quadrant.UNKNOWN` must not render) |
-
-### Score refusals (predictive, inherits all rollup refusals)
+### Rollup
 
 | Condition | Action |
 |---|---|
-| All rollup refusals above | refuse score as well |
-| Trained topic-hazard artifact not shipped | refuse score (v0 product is the refuse path) |
-| `extractor_version` differs from the trained artifact's | refuse Block 6 / score |
-| Observation window < 2 × horizon (360d for a 180d horizon), or unknown | refuse — implemented |
+| Any retrieval error in its inputs | Refuse; a failed fetch is not absence of evidence |
+| No path (`--path` missing) | Refuse |
+| Assignment precision not measured for the profile | Refuse |
+| Number of resolved items unknown | Refuse |
+| Fewer than 12 resolved items on the topic | Refuse |
+| Topic first appeared less than 12 months before *T* | Refuse; `torch/masked` did not exist before November 2022 |
+| Hub items present and no issues | Refuse; Hub items are inference-only in v1 |
+| Inflow rates unknown | Refuse; no demand axis |
+| R1 rates unknown | Refuse; no supply axis |
+| Demand and supply both flat | Refuse; no trajectory to report |
 
-**Apertus hits shared refusals.** Seven threads on 1.5, no path, no elapsed window. It refuses rollup and score, with both reasons printed. The strategy note already argued that refusing to score Apertus is more honest than scoring it, and this makes the refusal mechanical rather than a judgement call.
+### Score
 
----
+| Condition | Action |
+|---|---|
+| Any rollup refusal | Refuse |
+| No trained model shipped | Refuse (current state) |
+| `extractor_version` differs from the trained model's | Refuse block 6 and the score |
+| Observation window shorter than twice the horizon (360 days for 180), or unknown | Refuse |
+
+Apertus is refused on several of these: seven threads on 1.5, no path, no elapsed
+window. The report prints both reasons. The refusal follows from the rules rather than
+from a judgement call.
 
 ## 8. Packaging
 
-No change to the plan in the strategy note: dump the trees to text, walk them in ~60 lines of pure Python, no `lightgbm`, `onnxruntime` or NumPy in the core install. Training lives in a separate repo that is never in the wheel. Model artifacts ship as Release assets, cached under `~/.cache/consta/models/`, version pinned in the profile YAML so a stale model is as visible as a stale profile.
+Tree models are dumped to text and evaluated in about 60 lines of pure Python. The core
+install does not depend on `lightgbm`, `onnxruntime` or NumPy. Training code lives in a
+separate repository that is not part of the wheel. Model files ship as release assets,
+cached under `~/.cache/consta/models/`, with the version pinned in the profile YAML so
+that a stale model is as visible as a stale profile.
 
-The LLM extractor is a *runtime* dependency for live scoring, which is new and needs a decision: either the extracted fields are computed at assess time (costs a call per item, needs a key — breaks the keyless path), or the Blocks 1–4 model is the shipped default and Block 6 is opt-in behind `--extract`. **Default to the second.** A keyless `uvx consta assess` is worth more than a few points of Brier.
-
----
+LLM extraction at report time would cost a call per item and require a key. Blocks 1–4
+are therefore the default model, and block 6 is opt-in behind `--extract`. A run
+without any key matters more than a few points of Brier score.
 
 ## 9. Scope for v1
 
-Prediction reopens a decision that was closed: the roadmap accepted "vital signs before model". Building it means deferring other work (the GitHub Action was the one cut). This is the cut that is genuinely buildable and backtestable:
+v1 is `topic-hazard-v1`. Building it meant deferring the GitHub Action.
 
-**In scope for v1 (`topic-hazard-v1`)**
+In scope:
 
-- One corpus: 30–50 large Python repos with real module structure. Not "a few hundred".
-- REST-only point-in-time reconstruction (timeline + reactions endpoints). **No GH Archive.** This is the single biggest saving and it is what makes v1 feasible.
-- Blocks 1–4 fully; Block 5 in reduced form (git-log trends only, no LLM-derived alternative mentions); Block 6 on a subsample, for the ablation.
-- Discrete-time hazard, weekly, 26-week cap, R1 vs R2 vs censored.
-- Walk-forward, 4 folds, purged. Both headline numbers.
-- Refusal rules wired in, including the Apertus path.
+- One corpus of 30–50 large Python repositories with real module structure.
+- Point-in-time reconstruction from the REST API only (timeline and reactions
+  endpoints). No GH Archive, which is the largest saving.
+- Blocks 1–4 in full; block 5 reduced to git-log trends (no LLM-derived alternative
+  mentions); block 6 on a subsample, for the ablation.
+- Discrete-time weekly hazard, 26-week cap, R1, R2 and censored.
+- Walk-forward, 4 purged folds, both headline numbers.
+- The refusal rules, including the Apertus case.
 
-**Out of scope, explicitly**
+Out of scope:
 
-- GH Archive ingestion.
-- Author priors at full fidelity (Block 2 becomes best-effort; rate limits, not correctness, are the reason — say so).
-- Hub items in training. Hub discussions score at inference only, and the report must say the model was not trained on them.
-- Anything at 70B+ or a neural sequence model.
+- GH Archive.
+- Full author priors. Block 2 is best effort because of rate limits.
+- Hub items in training. Hub discussions are scored at inference only, and the report
+  must say the model was not trained on them.
+- Models of 70B parameters or more, and neural sequence models.
 
-**Kill criterion, pre-committed in writing.** If the model does not beat the vital-signs baseline on Brier at 90 days on the grouped-by-repo folds, ship the deterministic scorecard and state plainly that the model did not earn its place. That is the same argument the whole project makes, applied to its own work. Pre-committing to it is what makes it credible.
+Kill criterion, set in advance. If the model does not beat the vital-signs baseline
+on Brier score at 90 days with folds grouped by repository, ship the deterministic
+scorecard and state that the model did not beat it.
 
-**What Consta must not claim, in any version.**
+Claims Consta must not make:
 
-- Not "we predict whether a feature will survive". It is a resolution-hazard forecast on a topic, over 180 days, with an interval.
-- Not that the model is novel because prediction is novel. It is not — repo-level abandonment prediction is a published area with production tooling. The claim is *module and topic level*, which the literature explicitly does not cover, plus competing risks and the displacement feature.
-- Not that it ran on Apertus. It refuses on Apertus, deliberately, and says why.
-- No number without its interval and its refusal rule visible next to it.
-
----
+- That it predicts whether a feature will survive. It is a resolution-hazard forecast for
+  a topic, over 180 days, with an interval.
+- That prediction itself is new. Repository-level abandonment prediction is published
+  and has production tools. What is new is module and topic level, competing risks and
+  displacement; see [MSR_ISSUE_RESOLUTION.md](MSR_ISSUE_RESOLUTION.md).
+- That it ran on Apertus. It refuses on Apertus and says why.
+- Any number without its interval and refusal rule next to it.
 
 ## 10. Open questions
 
-- ~~Is the four-week trade against Track E and the W6 Action actually acceptable?~~ **Decided 2026-08-28: build the model, cut the W6 Action.** Schedule, tripwires and the pre-committed kill gate are in the delivery roadmap §"Decision 2026-08-28". The Gate checkbox there is ticked.
-- Does item→topic assignment reach usable precision on `torch/masked`? If not, v1 is a per-issue tool and the topic rollup waits.
-- Body edits are not retrievable per-version through the API. How much does that contaminate Block 1, and is it worth measuring on a sample?
-- The affect/tonality field: keep it for the ablation even though it is expected to rank low, or drop it and save the schema complexity?
-- Prior art on issue resolution-time prediction is well covered in the MSR literature and has **not** been surveyed for this file. The strategy note §"Prior art" surveyed the repo-level abandonment work, not this. Checkbox in the delivery roadmap Decision 2026-08-28.
-
-
+- Does issue-to-topic assignment reach usable precision on `torch/masked`? Measured: 0.91
+  on 95 items, recall not yet measured. If recall is low, v1 stays a per-issue tool and
+  the rollup waits.
+- Issue body edits cannot be retrieved per version through the API. How much does that
+  affect block 1, and is it worth measuring on a sample?
+- Keep `affect` for the ablation although it is expected to rank low, or drop it and
+  simplify the schema?
+- Prior work on issue resolution time is summarised in
+  [MSR_ISSUE_RESOLUTION.md](MSR_ISSUE_RESOLUTION.md); a fuller survey is still to do.

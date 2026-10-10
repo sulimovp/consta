@@ -1,57 +1,53 @@
 # Consta
 
-Evidence-first briefs for OSS contribution decisions. Given a question and a target repository, Consta retrieves cited evidence (issues, commits, docs, adjacent projects) and optionally synthesizes a short summary. Humans keep the final call.
+Consta collects evidence for a question about contributing to an open-source project:
+issues, merged PRs, commit activity on a module, docs, and alternative projects. It
+writes a report with a link for every item and, optionally, a short LLM summary in which
+every claim quotes its source.
+
+The name is Spanish and Italian for "it is on record".
 
 ```bash
 pip install consta
-uvx consta assess -q "…" -r pytorch/pytorch -p torch/masked --no-synthesis
+consta assess -q "Is reviving torch.masked worth an upstream contribution?" \
+  -r pytorch/pytorch -p torch/masked -e pytorch --no-synthesis
 ```
 
-*Consta* is Latin, Italian and Spanish for "it is on record, it stands as fact". The tool reports what the evidence establishes and leaves the verdict to you.
+[examples/](examples/README.md) has two real reports and explains how a report is built.
+[ARCHITECTURE.md](ARCHITECTURE.md) describes the code.
 
-**Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md) · **Step-by-step walkthrough with real reports:** [examples/](examples/README.md)
-
-## Install (dev)
+## Install
 
 ```bash
-pip install -e ".[dev]"      # CLI + tests
-pip install -e ".[dev,web]"  # + Flask UI (consta-web)
+pip install consta              # CLI
+pip install "consta[web]"       # CLI and web UI
+pip install -e ".[dev,web]"     # from a checkout, with test dependencies
 ```
 
 ## Configure
-
-Copy the template and fill in secrets (never commit `.env`). Consta reads `./.env`, and also `~/.config/consta/.env` so it works from any directory:
 
 ```bash
 cp .env.example .env
 ```
 
+Consta reads `./.env` and `~/.config/consta/.env`.
+
 | Variable | Required | Purpose |
 |----------|----------|---------|
-| `CONSTA_GITHUB_TOKEN` | Yes (live runs) | Fine-grained PAT or classic `public_repo` |
-| `CONSTA_LLM_PROVIDER` | Optional | `huggingface`, `openrouter`, `openai` or `anthropic` (code default: `anthropic`; `.env.example` sets `huggingface`) |
-| `CONSTA_HF_TOKEN` | Optional | Synthesis via the Hugging Face router; also used for gated Hub discussions |
-| `CONSTA_OPENAI_API_KEY` | Optional | Synthesis via OpenAI |
-| `CONSTA_OPENROUTER_API_KEY` | Optional | Synthesis via OpenRouter (default model `anthropic/claude-sonnet-5.5`) |
-| `CONSTA_ANTHROPIC_API_KEY` | Optional | Synthesis via Anthropic |
-| `CONSTA_LLM_MODEL` | Optional | Override the provider's default model |
+| `CONSTA_GITHUB_TOKEN` | Yes | GitHub token (fine-grained, or classic with `public_repo`) |
+| `CONSTA_LLM_PROVIDER` | No | `anthropic` (default), `openai`, `openrouter` or `huggingface` |
+| `CONSTA_ANTHROPIC_API_KEY` | No | Key for `anthropic` |
+| `CONSTA_OPENAI_API_KEY` | No | Key for `openai` |
+| `CONSTA_OPENROUTER_API_KEY` | No | Key for `openrouter` |
+| `CONSTA_HF_TOKEN` | No | Key for `huggingface`; also used to read gated Hugging Face Hub discussions |
+| `CONSTA_LLM_MODEL` | No | Model id, if not the provider's default |
 
-## Web UI
+Without an LLM key the report has no summary; everything else works.
 
-```bash
-pip install -e ".[web]"
-consta-web
-# http://127.0.0.1:5050 — form, sample cases, cited report (Bootstrap)
-```
-
-**Not sure what to try?** Pick a card on the home page — six scenarios across `pytorch`, `numpy`, and `sklearn` ([`eval/sample_cases.yaml`](eval/sample_cases.yaml)).
-
-See [docs/WEB_UI.md](docs/WEB_UI.md) and [docs/STATUS.md](docs/STATUS.md).
-
-## Commands
+## Usage
 
 ```bash
-consta ping
+consta ping            # check GitHub and LLM access
 consta list-profiles
 
 consta assess \
@@ -63,39 +59,42 @@ consta assess \
   --output report.md
 ```
 
-Flags: `--no-synthesis`, `--json`, `--allow-stale-profile`.
+| Option | Effect |
+|--------|--------|
+| `--path` | Scope commit activity and issue counts to one directory |
+| `--ecosystem` | Use a profile from `profiles/` (synonyms, labels, alternative projects) |
+| `--tier 2` | Add merged PRs and forum threads |
+| `--no-synthesis` | Skip the LLM summary |
+| `--json` | Print the report as JSON |
+| `--allow-stale-profile` | Use a profile older than its `max_age_days` |
 
-## Test (mandatory before claiming done)
-
-```bash
-./scripts/verify.sh
-```
-
-See [docs/VERIFICATION.md](docs/VERIFICATION.md).
-
-```bash
-pytest -v
-CONSTA_RUN_LIVE=1 pytest tests/test_live.py -v
-consta ping
-```
-
-## Ecosystem profiles
-
-| Profile | Repo | Use case |
-|---------|------|----------|
-| `pytorch` | `pytorch/pytorch` | `torch.masked`, `torch.nested`, … |
-| `numpy` | `numpy/numpy` | `numpy.ma`, NEPs, missing-data semantics |
-| `sklearn` | `scikit-learn/scikit-learn` | SLEPs, metadata routing, estimator API |
+### Web UI
 
 ```bash
-consta list-profiles
-./scripts/run_sample_assessments.sh   # needs .env
-python scripts/validate_reports.py
+consta-web    # http://127.0.0.1:5050
 ```
+
+The home page offers six preset questions from [eval/sample_cases.yaml](eval/sample_cases.yaml).
+See [docs/WEB_UI.md](docs/WEB_UI.md).
+
+## Profiles
+
+A profile is a YAML file with hints for one ecosystem. Without one, Consta works from
+the question and path alone.
+
+| Profile | Source | Covers |
+|---------|--------|--------|
+| `pytorch` | `pytorch/pytorch` | `torch.masked`, `torch.nested` |
+| `numpy` | `numpy/numpy` | `numpy.ma`, NEPs, missing data |
+| `sklearn` | `scikit-learn/scikit-learn` | SLEPs, metadata routing |
+| `apertus` | `swiss-ai/apertus-format`, Hugging Face Hub | Model repo discussions |
+
+To add one, copy [profiles/_template.yaml](profiles/_template.yaml).
 
 ## GitHub Action
 
-[`action/action.yml`](action/action.yml) posts a sticky evidence comment on issues:
+[action/action.yml](action/action.yml) runs Consta on new issues and posts the report as
+a comment. It skips the LLM summary unless you set `synthesize: "true"`.
 
 ```yaml
 on:
@@ -113,7 +112,16 @@ jobs:
           ecosystem: pytorch
 ```
 
+## Development
+
+```bash
+./scripts/verify.sh                           # tests; must pass before merging
+CONSTA_RUN_LIVE=1 pytest tests/test_live.py   # against the real GitHub API
+./scripts/run_sample_assessments.sh           # regenerate reports/ (needs .env)
+```
+
+See [docs/VERIFICATION.md](docs/VERIFICATION.md) and [docs/STATUS.md](docs/STATUS.md).
+
 ## License
 
 Apache-2.0. No CLA.
-

@@ -12,7 +12,7 @@ from consta.models.assessment import AssessmentRequest
 from consta.profiles import ProfileNotFoundError, ProfileStaleError, list_profiles, load_profile
 from consta.render.markdown import render_markdown
 
-app = typer.Typer(no_args_is_help=True, help="Evidence-first OSS contribution assessment.")
+app = typer.Typer(no_args_is_help=True, help="Collect cited evidence for an open-source contribution question.")
 
 
 @app.command()

@@ -13,7 +13,7 @@
     <div class="card shadow-sm mb-4">
       <div class="card-header bg-white">
         <span class="fw-semibold">Try a sample case</span>
-        <span class="text-muted small ms-2">not sure what to ask? pick one we test against</span>
+        <span class="text-muted small ms-2">preset questions</span>
       </div>
       <div class="card-body">
         <div class="row g-2">
@@ -50,7 +50,7 @@
             <label for="question" class="form-label fw-semibold">Your question</label>
             <textarea class="form-control" id="question" name="question" rows="3" required
                       placeholder="Is reviving feature X worth an upstream contribution?">{{ form.question }}</textarea>
-            <div class="form-text">Phrase it as a decision question, not “tell me about X”.</div>
+            <div class="form-text">Ask about a decision, for example "Is X worth contributing to?"</div>
           </div>
 
           <div class="row g-3">
@@ -75,7 +75,7 @@
                   <option value="{{ name }}" {% if form.ecosystem == name %}selected{% endif %}>{{ name }}</option>
                 {% endfor %}
               </select>
-              <div class="form-text">Adds synonyms, pinned issues, adjacent projects, dev-discuss.</div>
+              <div class="form-text">Adds synonyms, pinned issues, alternative projects and forum threads.</div>
             </div>
             <div class="col-md-3">
               <label for="tier" class="form-label fw-semibold">Evidence tier</label>

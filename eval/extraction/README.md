@@ -1,143 +1,113 @@
-# Block-6 extraction pilots
+# Extraction pilots
 
-Runs of `python -m consta.predict.extract_run` over the existing assignment gold draws.
-No new items were fetched for any of these; the corpus selection criterion is still an open
-Corpus selection criteria are tracked outside this package.
+Runs of `python -m consta.predict.extract_run`, which asks an LLM to fill a fixed set of
+fields (`intent`, `specificity`, `blocking_severity`, `affect`, `scope`,
+`maintainer_stance`) for each issue, PR or Hub discussion in the topic-assignment gold
+files. No new items were fetched for these runs.
 
-The runner is `block6-v3` (quote for quotable fields, rubric cell for judged fields). The
-files below are v1/v2 measurements. A v3 row will not match a v2 `extractor_version`, so
-do not resume a v2 JSONL with the current runner and treat the mix as one study.
+## Current state
 
-`smoke_block6_v3_gpt_oss.jsonl` is `--limit 10` over `pytorch_holdout.yaml`, and the first
-45 entries there are pull requests, so the slice contains no issues and no Apertus items.
-Read its fill rates as "the rubric fills on PRs", not as a discrimination check — `affect`
-is 0 on all nine populated rows. See the dated notes in the extraction table captions.
+Frozen on 2026-09-03 at schema `block6-v3`, run
+`pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl` (112 rows: 50 PyTorch issues, 17 other
+issues, 45 Hub discussions; no PRs).
 
-`--stratify 20 --seed 0` with `--kinds issue,pr,hub` draws four items from each
-origin×kind cell. The 31 Aug attempt wrote 20 rows of Hugging Face 402 (no inference
-credit). Do not read that JSONL as a filled smoke. The runner stops a batch on HTTP
-401/402 (`llm_http_status`, not a substring of the error body). Compaction keeps rows
-already in the file that are not in the current draw.
+Fill rates are high, but the distributions show that only about three columns carry
+information:
 
-`--kinds` defaults to `issue,hub`. Demand-side fields are not defined on pull requests.
-The first spend after PAYG is funded should be a new file, not a resume of the 402 mix:
+| Field | Filled (of 109) | Distribution | Usable |
+|-------|-----------------|--------------|--------|
+| `intent` | not recorded | not recorded | Yes (κ 0.77 between models) |
+| `specificity` | 96% | Nearly binary | Yes, as yes/no |
+| `blocking_severity` | 94% | Nearly binary | Yes, as yes/no |
+| `affect` | 96% | 0 on 102 of 105 non-null rows | No |
+| `scope` | 92% | 66% `one_line_fix`; κ 0.19 between models | No |
+| `maintainer_stance` | 7% | n/a | No: gold files hold only title and body |
 
-```bash
-python -m consta.predict.extract_run \
-  -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
-  -o eval/extraction/smoke_block6_v3_demand_gpt_oss.jsonl \
-  --stratify 20 --seed 0 --kinds issue,hub
-```
+3 of the 112 rows failed with router `json_validate_failed` errors after one retry.
+6 rows have span failures (a quote that is not in the thread).
 
 ## Runs
 
 | File | Schema | Model | Rows | Parse errors | Span failures |
-|---|---|---|---|---|---|
-| `pilot_2026-08-30.jsonl` | `block6-v1` | `openai/gpt-oss-120b:groq` | 176 | 0 | 90 (51%) |
-| `pilot_2026-08-31_block6_v2_gpt_oss.jsonl` | `block6-v2` | `openai/gpt-oss-120b:groq` | 176 | 0 | 7 (4.0%) |
-| `smoke_block6_v2_gpt_oss.jsonl` | `block6-v2` | `openai/gpt-oss-120b:groq` | 10 | 0 | 0 |
-| `smoke_block6_v2_gemma.jsonl` | `block6-v2` | `google/gemma-4-31B-it:cerebras` | 20 | 0 | 2 |
-| `smoke_block6_v2_qwen.jsonl` | `block6-v2` | `Qwen/Qwen3-14B:nscale` | 20 | 3 | 1 |
-| `smoke_block6_v3_gpt_oss.jsonl` | `block6-v3` | `openai/gpt-oss-120b:groq` | 10 | 0 | 1 |
-| `smoke_block6_v3_demand_gpt_oss.jsonl` | `block6-v3` | `openai/gpt-oss-120b:groq` | 20 | 0 | 1 |
-| `secondary_block6_v3_gemma.jsonl` | `block6-v3` | `google/gemma-4-31B-it:cerebras` | 20 | 0 | 0 |
-| `pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl` | `block6-v3` | `openai/gpt-oss-120b:groq` | 112 | 3 | 6 |
+|------|--------|-------|------|--------------|---------------|
+| `pilot_2026-08-30.jsonl` | v1 | `openai/gpt-oss-120b:groq` | 176 | 0 | 90 (51%) |
+| `pilot_2026-08-31_block6_v2_gpt_oss.jsonl` | v2 | `openai/gpt-oss-120b:groq` | 176 | 0 | 7 (4.0%) |
+| `smoke_block6_v2_gpt_oss.jsonl` | v2 | `openai/gpt-oss-120b:groq` | 10 | 0 | 0 |
+| `smoke_block6_v2_gemma.jsonl` | v2 | `google/gemma-4-31B-it:cerebras` | 20 | 0 | 2 |
+| `smoke_block6_v2_qwen.jsonl` | v2 | `Qwen/Qwen3-14B:nscale` | 20 | 3 | 1 |
+| `smoke_block6_v3_gpt_oss.jsonl` | v3 | `openai/gpt-oss-120b:groq` | 10 | 0 | 1 |
+| `smoke_block6_v3_demand_gpt_oss.jsonl` | v3 | `openai/gpt-oss-120b:groq` | 20 | 0 | 1 |
+| `secondary_block6_v3_gemma.jsonl` | v3 | `google/gemma-4-31B-it:cerebras` | 20 | 0 | 0 |
+| `pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl` | v3 | `openai/gpt-oss-120b:groq` | 112 | 3 | 6 |
 
-`smoke_block6_v3_demand_gpt_oss.jsonl` is `--stratify 20 --seed 0 --kinds issue,hub` (complete 1 Sep).
-Strata: 6 `pytorch:issue`, 7 `other:issue`, 7 `other:hub` — no PRs. On all 20 rows, judged ordinals
-fill (`specificity` 20/20, `blocking_severity` 19/20, `affect` 20/20, `scope` 18/20);
-`maintainer_stance` 1/20 (gold YAML is title+body). After the 2 Sep revalidate (absence
-needs no quote), one gpt-oss row still fails (`pytorch#39639`, intent quote not in the
-thread). This is the first filled v3 smoke on demand-side items.
+Notes on individual runs:
 
-`secondary_block6_v3_gemma.jsonl` is the same draw on Gemma. Revalidate cleared 18
-quote-on-false errors; 0 span failures remain. Agreement
-(`agreement_2026-09-01_gpt_oss_x_gemma_v3.json`) is overlap 20, valid 19. Read `n` first:
-`intent` κ 0.77 (n=17), `specificity` α 0.81 (n=19), `blocking_severity` α 0.95 (n=18),
-`scope` κ 0.19 (n=17). `affect` matches on 18/19 rows but α is 0 because the value is
-almost always 0. `maintainer_stance` n=1. This is a smoke, not the 200-item table.
+- v2's low span-failure rate is misleading. On the 176-row v2 file,
+  `blocking_severity` is filled on 6.2% of rows and `affect` on 3.4%. v3 fills them.
+- `smoke_block6_v3_gpt_oss.jsonl` is `--limit 10` over `pytorch_holdout.yaml`, whose
+  first 45 entries are PRs. It shows that the rubric fills on PRs, not that it
+  discriminates. `affect` is 0 on all nine filled rows.
+- `smoke_block6_v3_demand_gpt_oss.jsonl` is `--stratify 20 --seed 0 --kinds issue,hub`:
+  6 PyTorch issues, 7 other issues, 7 Hub discussions. `maintainer_stance` is filled on
+  1 of 20. One row still fails its span check (`pytorch#39639`: the `intent` quote is
+  not in the thread).
+- Agreement, gpt-oss against Gemma on that draw
+  (`agreement_2026-09-01_gpt_oss_x_gemma_v3.json`, 19 valid pairs): `intent` κ 0.77
+  (n=17), `specificity` α 0.81 (n=19), `blocking_severity` α 0.95 (n=18), `scope` κ 0.19
+  (n=17). `affect` agrees on 18 of 19 rows, but α is 0 because the value is almost always 0.
+  `n` is the number of pairs where both runs filled the field; read it first.
+- `agreement_2026-08-31_gpt_oss_x_gemma.json` and `..._x_qwen.json` are the same
+  comparison on the 20-item v2 overlaps.
 
-`pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl` is every issue and Hub row in the assignment
-gold (50 pytorch issues, 17 other issues, 45 Hub). No PRs. Seeded from the 20-row demand
-smoke so those calls were not repeated. Of 112 rows, 109 have fields; 3 remain router
-`json_validate_failed` 400s after one retry. On the 109 filled rows: `specificity` 96%,
-`blocking_severity` 94%, `affect` 96%, `scope` 92%, `maintainer_stance` 7%. Span failures
-6/112. v2 on the mixed 176-row file had `blocking_severity` at 6.2%.
+Rows of different schema versions do not match each other's `extractor_version`. Do not
+resume a v2 file with the v3 runner and treat the result as one study.
 
-**Frozen 2026-09-03.** Distributions, not fill rates, are the reading: `affect` is 102×0 of 105
-non-null; `specificity` and `blocking_severity` are near-binary; `scope` is 66% `one_line_fix`
-with smoke κ 0.19. Usable columns today: `intent` plus the two binarized ordinals. Do not
-spend on Gemma-200 or comment reconstruction until the modelling window (14 Sep). Details in
-the freeze note in this README.
-
-Extractor pin for the gpt-oss runs:
+The gpt-oss runs use
 `openai/gpt-oss-120b:groq@b5c939de8f754692c1647ca79fbf85e8c1e70f8a`
-(`docs/hf_snapshot/extractor_pin.json`).
+([docs/hf_snapshot/](../../docs/hf_snapshot/README.md)).
 
-v2's 4.0% span-failure rate is not a quality win. On the repaired 176-row file
-`blocking_severity` is populated on 6.2% of rows and `affect` on 3.4%. The v3 smoke
-(n=10) fills those ordinals (`specificity` 10/10, `scope` 10/10, `blocking_severity`
-9/10, `affect` 9/10) and still leaves `maintainer_stance` at 0/10. Read the
-2026-08-31 notes before treating any of this as labels.
+## Runner behaviour
 
-Resume treats rows without `repair_attempts` as incomplete, retries `parse_error` /
-transport failures, and keeps span-invalid rows (they already spent the call). New rows
-are appended, then the file is compacted once: current draw first, then any other rows
-already present. `--revalidate` recomputes `span_errors` from stored fields (no LLM).
+- `--kinds` defaults to `issue,hub`. The demand-side fields are not defined for PRs.
+- `--limit N` over the PyTorch holdout returns only PRs for N ≤ 45; use `--stratify`.
+- `--stratify K --seed S` draws evenly from each source×kind cell.
+- A batch stops on HTTP 401 or 402 (checked by status code). A run that hit 402 is not a
+  valid sample; start a new output file rather than resuming it.
+- On resume, rows without `repair_attempts` count as incomplete, parse and transport
+  failures are retried, and rows that failed only the span check are kept. New rows are
+  appended and the file is compacted: current draw first, then other existing rows.
+- `--revalidate` recomputes span errors from stored fields without calling the LLM.
 
 ## Commands
 
-v3 demand-side smoke (issues and Hub; this spends inference). `--limit` over the
-holdout is all PRs for N ≤ 45. Default `--kinds` is `issue,hub`.
+Calls to the extractor cost inference credit; the agreement step does not.
 
 ```bash
 set -a; . ./.env; set +a
+
+# Demand-side smoke (20 items)
 python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/smoke_block6_v3_demand_gpt_oss.jsonl \
   --stratify 20 --seed 0 --kinds issue,hub
-```
 
-Demand-side v3 fill-rate (112 issue+Hub gold rows; seed from the 20-row smoke to skip those):
-
-```bash
+# All 112 issue and Hub rows (seed from the smoke file to skip repeated calls)
 python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/pilot_2026-09-02_block6_v3_demand_gpt_oss.jsonl \
   --kinds issue,hub
-```
 
-Second extractor, for the agreement study. Run it on v3 after a smoke shows the ordinals
-fill, not against the v2 pilots:
-
-```bash
+# Second model, for agreement
 python -m consta.predict.extract_run \
   -i eval/topic_assignment/pytorch_holdout.yaml eval/topic_assignment/apertus.yaml \
   -o eval/extraction/secondary_block6_v3_gemma.jsonl \
   --router-model google/gemma-4-31B-it:cerebras \
   --extractor-model google/gemma-4-31B-it:cerebras@842da3794eaa0b77d5f08bae87a17459d91ff475 \
   --stratify 20 --seed 0 --kinds issue,hub
-```
 
-Agreement (no network, no cost). v3 demand draw:
-
-```bash
+# Agreement (no network)
 python -m consta.predict.agreement \
   --primary eval/extraction/smoke_block6_v3_demand_gpt_oss.jsonl \
   --secondary eval/extraction/secondary_block6_v3_gemma.jsonl \
   --output eval/extraction/agreement_2026-09-01_gpt_oss_x_gemma_v3.json
 ```
-
-v2 overlap (historical):
-
-```bash
-python -m consta.predict.agreement \
-  --primary eval/extraction/pilot_2026-08-31_block6_v2_gpt_oss.jsonl \
-  --secondary eval/extraction/smoke_block6_v2_gemma.jsonl \
-  --output eval/extraction/agreement_2026-08-31_gpt_oss_x_gemma.json
-```
-
-`agreement_2026-08-31_gpt_oss_x_gemma.json` and `..._x_qwen.json` are that command over the
-20-item v2 smoke overlaps. `n` per field is the count of pairs where both runs are non-null,
-and it is the number to read first.
-

@@ -1,55 +1,39 @@
-# Consta verification (mandatory)
+# Verification
 
-Every consta change must pass **automated deep tests** and, when the UI or report layout changes, a **visual check** before you call the work done.
-
-Agents and humans follow the same bar. CI enforces the automated part; the visual checklist is required for UI/report work even when CI is green.
-
-## 1. Automated gate (required always)
-
-From the repository root:
+## Before merging
 
 ```bash
 ./scripts/verify.sh
 ```
 
-This runs:
+It runs `pytest` and, if `reports/*.md` exist, `scripts/validate_reports.py`, which checks
+report format and expected content. CI runs the same script on every push and pull
+request, then builds the wheel and checks that profiles and sample cases are inside it.
 
-| Step | What it proves |
-|------|----------------|
-| `pytest -v` | Unit, integration, contract, web smoke, cache, job flow, sample-case YAML, held-out plan checks (`eval/sample_cases.yaml`) |
-| `test_live.py` | Skipped unless `CONSTA_RUN_LIVE=1` |
-| Report contract | If `reports/*.md` exist, `validate_reports.py` checks format + golden needles |
-
-Optional live smoke (needs `.env`):
+The live test is skipped unless enabled:
 
 ```bash
 CONSTA_RUN_LIVE=1 pytest tests/test_live.py -v
-./scripts/run_sample_assessments.sh
+./scripts/run_sample_assessments.sh   # writes reports/, needs .env
 python scripts/validate_reports.py
 ```
 
-## 2. Visual check (required for UI / report layout)
+## UI and report layout changes
 
-When you change `consta/web/**`, `render/markdown.py`, or templates:
+For changes to `consta/web/`, its templates or `consta/render/markdown.py`, also check
+the UI by hand:
 
-1. `pip install -e ".[web]"` then start the server (`consta-web` or `python -m consta.web.app`). **Restart** after code changes — a long-running process will not pick up edits.
-2. Open http://127.0.0.1:5050
-3. Confirm:
-   - Home: presets, form, footer status
-   - `/health`: GitHub + LLM status
-   - Pick a sample case card (e.g. **NumPy — numpy.ma (strategy)**, tier 1, synthesis off) → progress page → report with evidence accordion
-   - Download .md works
-4. Note any UX bugs in the PR or session summary
+1. Start `consta-web`; restart it after code changes.
+2. Open http://127.0.0.1:5050. The home page shows the presets, the form and the
+   connection status in the footer.
+3. Open `/health`.
+4. Run the "NumPy — numpy.ma (strategy)" preset (tier 1, no summary). The status page
+   should lead to a report with the evidence sections.
+5. Download the Markdown file.
 
-Browser automation in CI is not required yet; **manual or agent browser review is mandatory** for UI changes.
+## Checklist
 
-## 3. Definition of done
-
-- [ ] `./scripts/verify.sh` exit 0
-- [ ] UI/report changes: visual checklist above completed
-- [ ] Live-affecting changes: `CONSTA_RUN_LIVE=1` smoke OR documented why skipped
-- [ ] No secrets in git (`.env` stays local)
-
-## 4. CI
-
-GitHub Actions workflow `.github/workflows/ci.yml` runs `./scripts/verify.sh` on every push and PR, then installs the built wheel and checks that profiles and sample cases ship inside it.
+- [ ] `./scripts/verify.sh` exits 0
+- [ ] UI or report change: steps above done
+- [ ] Change affects live retrieval: live test run, or the reason it was skipped noted
+- [ ] No secrets committed

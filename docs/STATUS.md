@@ -1,65 +1,60 @@
-# Consta implementation status (August 2026)
+# Status (October 2026)
 
-Living snapshot of what is built and what is still open.
+## Working
 
-## Shipped
+| Area | State |
+|------|-------|
+| CLI | `assess`, `ping`, `list-profiles`; options `--path`, `--ecosystem`, `--tier`, `--no-synthesis`, `--json` |
+| Retrieval | GitHub issues, merged PRs, commits, files; vital signs per path; alternative projects (each URL fetched); Discourse threads (pinned and search); Hugging Face Hub discussions |
+| Validation | Off-topic issues and PRs excluded with a reason; every evidence kind represented in the first 25 items |
+| Summary | Anthropic, OpenAI, OpenRouter or Hugging Face router. Citation check on every `[n]`, every paragraph and every quote; one retry; otherwise the summary is withheld |
+| Profiles | `pytorch`, `numpy`, `sklearn`, `apertus`. Last checked 2026-08-30; they expire after 90 days |
+| Web UI | Flask on port 5050, background jobs, six presets |
+| GitHub Action | [action/action.yml](../action/action.yml): comment on new issues, no summary by default |
+| Tests | `./scripts/verify.sh` locally and in CI; live test with `CONSTA_RUN_LIVE=1` |
 
-| Area | What works |
-|------|------------|
-| **CLI** | `consta ping`, `list-profiles`, `assess` with `--tier`, `--ecosystem`, `--no-synthesis`, `--json` |
-| **Profiles** | Four YAML files: `pytorch`, `numpy`, `sklearn`, `apertus`. Synonyms, pinned issues, path hints, adjacent projects, discourse / Hub. Re-verified 2026-08-30 after the 90-day stamp expired (day 92). |
-| **Retrieval** | GitHub issues/PRs/commits/files; adjacent URL validation plus fetched page text (curator `relevance` is labelled, not quoted; a failed fetch is excluded with a reason, not dropped); Hub discussions; vital signs; dev-discuss pinned + HTML search |
-| **Forecast** | Demand×supply topic rollup from realized outcomes (`## Topic trajectory` with provenance). Inflow and R1 samples are filtered with `automatic_assign` before counting. `vitals-logistic-v0` is not printed. Hazard score remains refused until a trained artifact ships. Assignment precision: PyTorch holdout `n=95`, precision 0.91 (recall omitted as unmeasured); Apertus `n=81`, precision 0.88 / recall 0.64 (recall below 0.80 refuses the rollup). Spec: [`docs/PREDICT.md`](PREDICT.md), wiring brief [`docs/PREDICT_QUADRANT.md`](PREDICT_QUADRANT.md) |
-| **Extraction** | Block-6 frozen at v3/112 demand-side rows (`pilot_2026-09-02_…`). Fill rates look high; distributions say ~three usable columns (`intent`, binarized `specificity`/`blocking_severity`). `affect` is a constant; `scope` unreliable (κ 0.19). See [`eval/extraction/README.md`](../eval/extraction/README.md) . |
-| **Engine** | Planner → retrievers → validator → optional LLM synthesis → citation checker → markdown report |
-| **Hardening** | GitHub search cache (1h TTL), rate-limit retries, citation id normalization, quote gate on fetched snippets |
-| **Web UI** | Flask + Bootstrap on `:5050`; async jobs; 6 sample presets from [`eval/sample_cases.yaml`](../eval/sample_cases.yaml) |
-| **Tests** | `./scripts/verify.sh` — pytest plus report contracts when `reports/*.md` exist |
-| **CI** | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) runs the same gate |
-| **Verification** | [`VERIFICATION.md`](VERIFICATION.md) — mandatory deep tests + visual UI checklist |
+## Experimental
 
-## Sample cases (3 repos, 6 scenarios)
+### Topic forecast
 
-| Preset id | Repo | Purpose |
-|-----------|------|---------|
-| `pytorch-masked` | `pytorch/pytorch` | Reference dogfood; golden issues + dev-discuss |
-| `pytorch-nested` | `pytorch/pytorch` | Compare nested/jagged vs masked path |
-| `numpy-ma` | `numpy/numpy` | `numpy/ma` — `__array_function__` angle |
-| `numpy-ma-strategy` | `numpy/numpy` | Shorter strategy wording; tier 1 quick smoke |
-| `sklearn-routing` | `scikit-learn/scikit-learn` | SLEP006 / metadata routing |
-| `sklearn-generic` | `scikit-learn/scikit-learn` | Template "feature X" question |
+Code in `consta/predict/`. The report's "Topic trajectory" section compares
+recent and baseline issue inflow and resolution for the topic. It refuses unless its
+inputs are measured well enough, and in current runs it usually refuses (for
+`torch/masked`: resolution rates unknown). Issue-to-topic assignment has been measured
+for two profiles:
 
-Live reports regenerated via [`scripts/run_sample_assessments.sh`](../scripts/run_sample_assessments.sh) → `reports/*.md` (4 primary scenarios; subset of presets).
+| Profile | Sample | Precision | Recall |
+|---------|--------|-----------|--------|
+| `pytorch` | 95 | 0.91 | not measured |
+| `apertus` | 81 | 0.88 | 0.64 (below 0.80, so the rollup is refused) |
 
-## Test coverage summary
+The resolution-time score is always refused: no trained model is shipped. Design:
+[PREDICT.md](PREDICT.md), [PREDICT_QUADRANT.md](PREDICT_QUADRANT.md).
 
-| Layer | Runs when | Needs `.env` |
-|-------|-----------|--------------|
-| `./scripts/verify.sh` | Every PR / agent "done" | No |
-| Mocked integration (`test_integration`, `test_ecosystems`) | `verify.sh` | No |
-| Held-out plan checks (`test_held_out_eval`) | `verify.sh` | No |
-| Live smoke (`test_live.py`) | `CONSTA_RUN_LIVE=1` | Yes |
-| Sample report regen | `run_sample_assessments.sh` | Yes |
+### LLM feature extraction
 
-## Phase mapping
+Used by the forecast. Frozen at version 3 on 112 labelled rows.
+About three fields are usable (`intent`, and `specificity` and `blocking_severity` as
+yes/no); `affect` is constant and `scope` unreliable (κ 0.19). See
+[eval/extraction/README.md](../eval/extraction/README.md).
 
-| Phase | Status |
-|-------|--------|
-| **0** — validation | **Not done** — maintainer interviews, proceed/kill |
-| **0.5** — dev setup | **Mostly done** — scaffold, ping, profiles; SQLite/LanceDB index deferred |
-| **1** — CLI MVP | **In progress** — core retrieval + web UI built; human checkboxes open |
-| **1.5** — Tier 2 | **Partial** — merged PR search, discourse search; issue–PR linking thin |
-| **2** — GitHub Action | **Deferred** (28 Aug, traded for `topic-hazard-v1`). App remains Phase 2.5. |
-| **3** — specialisation | **Partial** — four profiles; held-out scaffold (3 cases), not 10-question live eval |
+## Open
 
-## Docs index
+- No interviews with maintainers yet to check that the reports help them.
+- Evaluation is three held-out sample cases, not a measured set of questions.
+- Linking issues to the PRs that fixed them is minimal.
+- No local index; every run calls the GitHub API (search results are cached for an hour).
+- The citation check confirms quotes, not the claims built on them.
 
-| Doc | Audience |
-|-----|----------|
-| [`README.md`](../README.md) | Install, commands, profiles |
-| [`WEB_UI.md`](WEB_UI.md) | UI routes, presets, UX |
-| [`VERIFICATION.md`](VERIFICATION.md) | Mandatory test + visual gate |
-| [`DEPLOY.md`](DEPLOY.md) | Gunicorn / hosting |
+## Sample cases
 
+| Id | Repository | Purpose |
+|----|------------|---------|
+| `pytorch-masked` | `pytorch/pytorch` | Reference case with expected issue numbers |
+| `pytorch-nested` | `pytorch/pytorch` | Compare with `torch.masked` |
+| `numpy-ma` | `numpy/numpy` | `__array_function__` question |
+| `numpy-ma-strategy` | `numpy/numpy` | Short question, tier 1 |
+| `sklearn-routing` | `scikit-learn/scikit-learn` | SLEP006 metadata routing |
+| `sklearn-generic` | `scikit-learn/scikit-learn` | Template question |
 
-
+`./scripts/run_sample_assessments.sh` writes reports for four of them to `reports/`.

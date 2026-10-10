@@ -1,69 +1,54 @@
-# Web UI (Flask + Bootstrap)
+# Web UI
 
-Simple product shell around the same `AssessmentEngine` as the CLI.
-
-## UX principles
-
-1. **Evidence over verdict** — summary is labeled “verify citations”; open questions are prominent.
-2. **One primary action** — “Run assessment” on a single form; sample cases reduce blank-page anxiety.
-3. **Progressive disclosure** — tier / stale profile / synthesis are visible but not overwhelming; full markdown is collapsed.
-4. **Trust signals** — footer shows GitHub/LLM config; `/health` for connectivity.
-5. **Honest latency** — submit → progress page (3s auto-refresh) → report; copy says 30–90s.
-
-## Sample cases (quick start)
-
-Six curated scenarios live in [`eval/sample_cases.yaml`](../eval/sample_cases.yaml) and appear on the home page as cards. Use them when you are unsure what to try:
-
-| Preset | Repo | Notes |
-|--------|------|-------|
-| PyTorch — torch.masked | `pytorch/pytorch` | Reference case; tier 2; synthesis on by default |
-| PyTorch — torch.nested | `pytorch/pytorch` | Compare nested vs masked investment |
-| NumPy — numpy.ma | `numpy/numpy` | `numpy/ma` path; synthesis off by default (retrieval-only) |
-| NumPy — numpy.ma (strategy) | `numpy/numpy` | Tier 1 quick smoke |
-| scikit-learn — metadata routing | `scikit-learn/scikit-learn` | SLEP006 |
-| scikit-learn — generic feature | `scikit-learn/scikit-learn` | Template “feature X” question |
-
-Selecting a card fills the form (question, repo, path, profile, tier, synthesis default). Edit before submitting if needed.
-
-To add or change presets, edit the YAML only — `consta.web.app` loads it at request time.
-
-## Install and run
+A Flask app that runs the same engine as the CLI.
 
 ```bash
-cd consta
-pip install -e ".[dev,web]"
-# configure .env (CONSTA_GITHUB_TOKEN, optional LLM keys)
-consta-web
-# open http://127.0.0.1:5050
+pip install -e ".[web]"
+consta-web    # http://127.0.0.1:5050
 ```
 
-**Restart the server after code changes** — a long-running process will not pick up Python edits.
+Python changes need a server restart.
 
-Environment:
+## Pages
+
+| Path | Method | Purpose |
+|------|--------|---------|
+| `/` | GET | Form and preset cards; `?preset=<id>` fills the form |
+| `/assess` | POST | Start a background job and redirect to its status page |
+| `/assess/status/<id>` | GET | Refreshes every 3 seconds until the report is ready |
+| `/health` | GET | GitHub and LLM connectivity |
+
+A run takes 30–90 seconds. The report page shows the summary, open questions, the
+evidence by kind, and a Markdown download.
+
+## Presets
+
+The home page cards come from [eval/sample_cases.yaml](../eval/sample_cases.yaml), read
+on each request. To add or change a preset, edit that file.
+
+| Preset | Repository | Notes |
+|--------|------------|-------|
+| PyTorch — torch.masked | `pytorch/pytorch` | Tier 2, summary on |
+| PyTorch — torch.nested | `pytorch/pytorch` | Compare with `torch.masked` |
+| NumPy — numpy.ma | `numpy/numpy` | Summary off |
+| NumPy — numpy.ma (strategy) | `numpy/numpy` | Tier 1, fastest |
+| scikit-learn — metadata routing | `scikit-learn/scikit-learn` | SLEP006 |
+| scikit-learn — generic feature | `scikit-learn/scikit-learn` | Template question |
+
+## Settings
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `CONSTA_WEB_HOST` | `127.0.0.1` | Bind address |
 | `CONSTA_WEB_PORT` | `5050` | Port |
-| `CONSTA_FLASK_SECRET` | dev placeholder | Session/flash secret — **set in production** |
-| `CONSTA_WEB_DEBUG` | off | Flask debug (never on public internet) |
+| `CONSTA_FLASK_SECRET` | development value | Session secret; set it in production |
+| `CONSTA_WEB_DEBUG` | off | Flask debug mode; never on a public host |
 
-## Routes
+Deployment: [DEPLOY.md](DEPLOY.md).
 
-| Path | Method | Purpose |
-|------|--------|---------|
-| `/` | GET | Assessment form + sample case cards (`?preset=<id>`) |
-| `/assess` | POST | Start background job, redirect to status |
-| `/assess/status/<id>` | GET | Poll until report ready (auto-refresh 3s) |
-| `/health` | GET | GitHub + LLM ping status |
+## Not built
 
-## Verification
-
-Before claiming UI work done: [`VERIFICATION.md`](VERIFICATION.md) (`./scripts/verify.sh` + visual checklist).
-
-## Future UI (backlog)
-
-- Side-by-side compare two assessments
-- Profile editor (YAML) with validation
-- Export PDF / share link (read-only report id)
-- Persistent job store for multi-worker deploys ([`DEPLOY.md`](DEPLOY.md))
+- Comparing two reports side by side
+- Editing profiles in the browser
+- Shareable report links
+- A job store shared between workers

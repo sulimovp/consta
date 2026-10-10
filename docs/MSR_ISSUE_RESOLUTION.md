@@ -1,38 +1,44 @@
-# MSR prior art — issue resolution-time prediction
+# Prior work: predicting issue resolution time
 
-Tripwire in `ROADMAP.md` Decision 2026-08-28 (before 14 Sep). `STRATEGY.md` already
-surveyed **repo-level** abandonment; this note covers **issue-level** time-to-resolution.
-Written 2026-09-03. Not a literature review — enough to keep the module/topic claim honest.
+Written 2026-09-03. A short survey of issue-level resolution-time prediction, to place
+the topic forecast in [PREDICT.md](PREDICT.md). Repository-level abandonment prediction
+is a separate body of work and is not covered here.
 
-## What already exists
+## Existing work
 
-| Work | What it predicts | What it does not cover |
-|------|------------------|------------------------|
-| Giger et al., "Predicting the Fix Time of Bugs" (MSR / Empirical SE lineage; Eclipse, Mozilla, Gnome) | Fast vs slow bug fix from report attributes; decision trees | Module/topic path; competing risks (fix vs administrative close); adjacent-module displacement |
-| Follow-on bug-fix-time literature (Eclipse/Mozilla/Jira) | Regression or classification of hours/days to FIXED | Same gaps; often mixes post-submission process features that leak if used at open |
-| "Predicting Issue Resolution Time of OSS Using Multiple Features" (J. Softw. Evol. Process, DOI 10.1002/smr.2746) | Resolution time on GitHub issues with project/issue/developer features; static + dynamic | Topic hazard; R1 vs R2; path-scoped demand×supply |
-| Process-mining of GitHub issue micro-processes (e.g. SMU / OSS process papers) | Patterns and duration of corrective maintenance | Module contribution decision; adjacent API |
-| Leakage-aware IRT work (creation-time features only, temporal splits) | Early estimate without post-open contamination | Still tracker-native priority/assignee past — not ecosystem adjacent rise/fall |
+| Work | Predicts | Does not cover |
+|------|----------|----------------|
+| Giger et al., "Predicting the Fix Time of Bugs" (Eclipse, Mozilla, Gnome) | Fast or slow fix from bug report attributes, with decision trees | Module or topic level; fix versus administrative close; displacement by another module |
+| Later bug-fix-time studies (Eclipse, Mozilla, Jira) | Hours or days to FIXED, as regression or classification | Same; often use features recorded after the issue was opened, which leak |
+| "Predicting Issue Resolution Time of OSS Using Multiple Features", J. Softw. Evol. Process, doi:10.1002/smr.2746 | Resolution time of GitHub issues from project, issue and developer features | Topic level; fix versus close; demand and supply per path |
+| Process mining of GitHub issue workflows | Patterns and duration of maintenance work | Whether to contribute to a module; alternative APIs |
+| Leakage-aware studies (creation-time features, temporal splits) | Early estimates without post-open data | Rise or fall of neighbouring modules |
 
-Shared findings that we inherit, not reinvent:
+Findings this work takes as given:
 
-1. Creation-time metadata predicts something; post-submission process features (comments, status thrash) improve accuracy and are the main leakage risk.
-2. Tree ensembles are the usual baseline; random train/test overstates accuracy vs temporal splits.
-3. Long-tail durations are normal; mean absolute error on hours is the common metric, not competing-risk CIF.
+1. Metadata available when an issue is opened predicts something. Later activity
+   (comments, status changes) improves accuracy and is the main source of leakage.
+2. Tree ensembles are the usual baseline. Random train/test splits overstate accuracy
+   compared with temporal splits.
+3. Resolution times have long tails. Studies usually report mean absolute error in hours,
+   not cumulative incidence over competing outcomes.
 
-## What Consta claims that this literature does not
+## What the topic forecast adds
 
-- **Module / path level**, not issue-tracker row level alone — `torch/masked` vs the repo.
-- **Competing risks** — R1 (linked merge touching the path) vs R2 (administrative close) vs censored, not "closed".
-- **Displacement** — adjacent module rising while this one falls (NestedTensor pattern).
-- **Refusal** when the window or assignment precision cannot support a score (Apertus path).
+- It works at module or path level (`torch/masked`), not per issue.
+- It separates outcomes: resolved by a merged change on the path (R1), closed without
+  one (R2), or still open (censored).
+- It looks for displacement: a neighbouring module gaining activity while this one loses
+  it, as with NestedTensor and MaskedTensor.
+- It refuses to score when the observation window or the issue-to-topic assignment
+  precision is too weak, as for Apertus.
 
-Any claim that "nobody predicts issue resolution" is wrong. The honest line is:
-issue-level time-to-fix is crowded; **topic-level competing-risk hazard with displacement
-and explicit refusal** is the gap we are testing.
+Issue-level resolution-time prediction is well studied. The untested part is the
+topic-level version with competing outcomes, displacement and refusal.
 
-## Implication for 14 Sep – 4 Oct
+## Consequence for evaluation
 
-Baselines must include a simple issue-level or person-period model without Block 6 / without
-displacement, so a win is not just "we beat a mean." Kill criterion stays: beat vital-signs /
-Blocks 1–4 on Brier at 90 days, grouped-by-repo.
+The baselines must include a simple issue-level or person-period model without the LLM
+features and without displacement, so that an improvement is measured against a real
+model and not against a mean. The model is kept only if it beats the vital-signs
+baseline on Brier score at 90 days, with folds grouped by repository.

@@ -70,7 +70,7 @@ def render_markdown(report: AssessmentReport) -> str:
     if report.summary:
         lines.extend(
             [
-                "## Summary (model synthesis — verify citations below)",
+                "## Summary (model synthesis; check the citations)",
                 "",
                 display_summary(report.summary),
                 "",

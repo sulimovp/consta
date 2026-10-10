@@ -1,422 +1,165 @@
-# Consta — system architecture
+# Architecture
 
-**Implementation:** standalone Python package.
+Consta answers one request: a question, a repository, and optionally a path and an
+ecosystem profile. It runs a fixed pipeline and writes a Markdown or JSON report.
 
-This document describes a **universal** evidence-retrieval pipeline. [`torch.masked`](https://github.com/pytorch/pytorch/tree/main/torch/masked) is the reference scenario throughout; the same engine must run for any `--repo owner/name` with optional `--ecosystem` enrichment.
-
----
-
-## Goals and non-goals
-
-**Goals**
-
-- Given a natural-language question and a target repository, produce a **structured, cited evidence report** a human can verify in minutes.
-- Keep retrieval, validation, and synthesis as separate stages so each can be tested without an LLM.
-- Specialise via **ecosystem profiles** (YAML), not hard-coded PyTorch logic in core code.
-
-**Non-goals**
-
-- Verdict-first Q&A ("yes, contribute").
-- Auto-labeling, auto-closing issues, or submitting PRs.
-- Full-repo mirroring or code understanding beyond path-scoped git metadata.
-- Replacing maintainer judgment.
-
----
-
-## High-level pipeline
-
-```mermaid
-flowchart LR
-  subgraph input
-    Q[Question]
-    R[Target repo]
-    P[Ecosystem profile optional]
-  end
-
-  subgraph core
-    PL[Query planner]
-    RT[Retrievers]
-    IX[(Index and cache)]
-    VA[Evidence validator]
-    SY[Synthesizer]
-    CV[Citation checker]
-    RP[Report renderer]
-  end
-
-  subgraph output
-    MD[Markdown report]
-    JSON[JSON bundle optional]
-  end
-
-  Q --> PL
-  R --> PL
-  P --> PL
-  PL --> RT
-  RT --> IX
-  RT --> VA
-  VA --> SY
-  SY --> CV
-  CV --> RP
-  RP --> MD
-  RP --> JSON
+```text
+question, repo, path, profile
+  → planner        build search queries and URLs              consta/engine/planner.py
+  → retrievers     fetch evidence in parallel                 consta/retrievers/
+  → validator      drop off-topic items, dedupe, rank         consta/engine/validator.py
+  → synthesizer    optional LLM summary                       consta/engine/synthesizer.py
+  → citation check verify every citation and quote            consta/engine/citation_checker.py
+  → renderer       Markdown report                            consta/render/markdown.py
 ```
 
-**Invariant:** nothing enters the report `Evidence` section unless it passed validation (real URL, fetch succeeded, within freshness window). The synthesizer may only reference evidence IDs present in the bundle.
+Only the synthesizer calls an LLM. Every other stage is deterministic and tested
+without network access.
 
----
-
-## Package layout
-
-Planned Python 3.11 package. One library; CLI and GitHub App are thin adapters.
+## Layout
 
 ```text
 consta/
-  pyproject.toml
-  consta/
-    __init__.py
-    cli.py                 # typer: assess, ping, index refresh
-    config.py              # env, paths, rate-limit budgets
-
-    models/
-      assessment.py        # AssessmentRequest, AssessmentReport
-      evidence.py          # EvidenceItem, EvidenceBundle, EvidenceKind
-      profile.py           # EcosystemProfile (pydantic)
-
-    engine/
-      planner.py           # Question → RetrievalPlan
-      orchestrator.py      # runs retrievers, merges, dedupes
-      validator.py         # URL alive, freshness, no orphan claims
-      synthesizer.py       # LLM call with evidence-only context
-      citation_checker.py  # post-pass: every [n] resolves
-
-    retrievers/
-      base.py              # Retriever protocol
-      github_issues.py
-      github_prs.py        # Tier 2
-      git_activity.py      # path-scoped log (local clone or API)
-      repo_files.py        # README, CONTRIBUTING, CODEOWNERS
-      discourse.py         # generic HTTP fetch + extract (profile-driven)
-      adjacent.py          # candidate generation + existence check
-
-    clients/
-      github.py            # httpx, ETag cache, rate-limit tracker
-      llm.py               # provider protocol; anthropic, openai
-      http.py              # HEAD/GET for validation
-
-    index/
-      store.py             # SQLite: metadata, fetch timestamps
-      fts.py               # FTS5 on issue/PR titles and bodies
-      vectors.py           # lancedb embeddings (optional hybrid rank)
-
-    profiles/
-      loader.py            # load YAML, check last_verified
-      schema.yaml          # JSON Schema for profile files
-      pytorch.yaml         # first shipped profile
-      _template.yaml       # copy for new ecosystems
-
-    render/
-      markdown.py          # fixed report schema
-      github_comment.py    # collapsible sections for App
-
-  tests/
-    fixtures/              # recorded HTTP (vcr/pytest-httpx)
-    golden/                # torch.masked expected evidence IDs
+  cli.py              typer commands: assess, ping, list-profiles
+  config.py           settings from CONSTA_* env vars and .env files
+  models/             pydantic models: request, evidence, report, profile
+  engine/             planner, orchestrator, validator, synthesizer, citation checker
+  retrievers/         one module per evidence source
+  clients/            GitHub, HTTP, Hugging Face Hub and LLM clients
+  cache/              on-disk cache for GitHub search results (1 hour)
+  render/markdown.py  report layout
+  predict/            experimental topic forecast (see docs/PREDICT.md)
+  web/                Flask UI
+profiles/             ecosystem profiles (YAML)
+eval/                 sample cases and labelled data for the forecast
 ```
 
----
+## Data model
+
+`AssessmentRequest` holds the question, `repo`, `path`, `ecosystem`, `tier` (1 or 2),
+`synthesize` and `max_evidence`.
 
-## Core data model
+`EvidenceItem` is one piece of evidence:
 
-All stages exchange pydantic models. Serialization to JSON enables golden tests and GitHub App replay.
+| Field | Notes |
+|-------|-------|
+| `id` | Stable slug, e.g. `issue-89734`, `vitals-torch-masked` |
+| `kind` | `issue`, `pull_request`, `commit`, `file`, `process_doc`, `discourse_thread`, `hf_discussion`, `adjacent_project`, `vital_signs`, … |
+| `title`, `url` | Shown in the report |
+| `snippet` | Up to 500 characters of source text. Quotes in the summary are checked against title and snippet |
+| `relevance_score` | 0–1, set by the retriever |
+| `metadata` | Kind-specific: labels, state, curator note, exclusion reason |
 
-### AssessmentRequest
+`EvidenceBundle` holds the kept items, the excluded items with reasons, open questions
+and diagnostics. `AssessmentReport` adds the summary, the citation map and any citation
+errors.
 
-| Field | Type | Required | Example (`torch.masked`) |
-|-------|------|----------|--------------------------|
-| `question` | str | yes | "Is reviving MaskedTensor worth an upstream contribution?" |
-| `repo` | str | yes | `pytorch/pytorch` |
-| `path` | str | no | `torch/masked` |
-| `ecosystem` | str | no | `pytorch` |
-| `tier` | int | no (default 1) | `2` enables PR/discourse retrievers |
-| `max_evidence` | int | no (default 40) | cap before synthesis |
+## Retrievers
 
-### EvidenceItem
-
-| Field | Type | Notes |
-|-------|------|-------|
-| `id` | str | stable slug, e.g. `issue-89734` |
-| `kind` | EvidenceKind | enum below |
-| `title` | str | human label |
-| `url` | HttpUrl | canonical link |
-| `snippet` | str | ≤500 chars for synthesis context |
-| `retrieved_at` | datetime | UTC |
-| `source_retriever` | str | provenance for debugging |
-| `relevance_score` | float | 0–1 from ranker |
-| `metadata` | dict | kind-specific (state, labels, merged_at, …) |
-
-**EvidenceKind** (extensible enum):
-
-`issue`, `issue_comment`, `pull_request`, `commit`, `file`, `discourse_thread`, `release`, `adjacent_project`, `process_doc`
-
-### EvidenceBundle
-
-- `items: list[EvidenceItem]` — deduped by URL
-- `open_questions: list[str]` — retriever failures, rate limits, ambiguous gaps
-- `freshness: datetime` — oldest `retrieved_at` or profile `last_verified`, whichever is worse
-- `retrieval_stats: dict` — API calls, cache hits, duration
-
-### AssessmentReport
-
-- `request: AssessmentRequest`
-- `evidence: EvidenceBundle`
-- `summary: str | None` — synthesis paragraphs with `[n]` tags; `None` if `--no-synthesis`
-- `citation_map: dict[int, str]` — `[n]` → evidence id
-- `validation_errors: list[str]` — citation checker output; empty = pass
-
----
-
-## Retriever protocol
-
-Every retriever is a stateless class implementing one interface. The orchestrator runs them concurrently (asyncio + httpx) subject to a global rate-limit budget.
-
-```python
-class Retriever(Protocol):
-    name: str
-    tier: int  # 1 = MVP, 2 = Phase 1.5, 3 = optional
-
-    def plan(self, request: AssessmentRequest, profile: EcosystemProfile | None) -> RetrievalSpec: ...
-
-    async def fetch(
-        self,
-        spec: RetrievalSpec,
-        clients: ClientBundle,
-        index: IndexStore,
-    ) -> list[EvidenceItem]: ...
-```
-
-**RetrievalSpec** carries planned queries (GitHub search strings, paths, discourse URLs) so `plan()` is unit-testable without network.
-
-### Built-in retrievers (universal)
-
-| Retriever | Tier | Input | Output kind |
-|-----------|------|-------|-------------|
-| `GitHubIssuesRetriever` | 1 | repo + query embedding/keywords | `issue`, `issue_comment` |
-| `RepoFilesRetriever` | 1 | repo + paths from profile or defaults | `file`, `process_doc` |
-| `GitActivityRetriever` | 1 | repo + `--path` | `commit` |
-| `AdjacentProjectsRetriever` | 1 | question + profile.adjacent | `adjacent_project` (validated only) |
-| `GitHubPRsRetriever` | 2 | repo + path + linked issues | `pull_request` |
-| `DiscourseRetriever` | 2 | profile.discourse URLs + query | `discourse_thread` |
-| `ReleasesRetriever` | 2 | repo tags/releases | `release` |
-
-Profile adds **sources and synonyms**; retriever code stays generic.
-
-### Ranking (hybrid)
-
-1. **FTS5** keyword match on indexed issue/PR text (profile synonym expansion).
-2. **Vector** similarity (embedding of question vs item title+snippet).
-3. **Recency** boost for commits and merged PRs.
-4. **Profile weights** — e.g. label `module: masked` +0.2 for PyTorch.
-
-Final score = weighted sum; top-K per kind before global cap.
-
----
-
-## Query planner
-
-`planner.py` turns `(question, repo, profile)` into a `RetrievalPlan`:
-
-1. Expand question with profile **synonyms** (`masked tensor` → `MaskedTensor`, `NestedTensor`, …).
-2. Select retrievers by `tier` and available profile sections.
-3. Build GitHub search queries (issues: `repo:pytorch/pytorch masked tensor`, PRs: `repo:pytorch/pytorch path:torch/masked`).
-4. Attach default file paths: `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS`, plus profile `scope_files`.
-5. Set rate-limit budget (default: 25 search calls, 100 REST calls per assessment).
-
-No LLM in the planner for MVP — keeps runs deterministic and cheap. Optional later: LLM suggests extra keywords, planner still validates.
-
----
-
-## Evidence validator
-
-Runs **before** synthesis on every `EvidenceItem`:
-
-| Check | Action on failure |
-|-------|-------------------|
-| URL returns 2xx or valid GitHub API object | drop item; log to `open_questions` |
-| `retrieved_at` within profile `max_age_days` | drop if index stale; suggest `consta index refresh` |
-| Adjacent project: repo or docs URL exists | drop; never pass to synthesizer |
-| Duplicate URL | merge, keep higher score |
-
-AdjacentProjectsRetriever flow:
-
-1. Static list from profile `adjacent_projects` (always validated).
-2. Optional LLM proposes extra names → **must** pass HTTP/GitHub existence check → drop failures silently.
-
----
-
-## Synthesizer and citation checker
-
-**Synthesizer**
-
-- Input: question + evidence items (id, title, snippet, url only — not full bodies).
-- System prompt: evidence-only; refuse unknown projects; tag sentences with `[n]`.
-- Output: structured JSON `{ paragraphs: [...], citations: { "1": "issue-89734", ... } }` preferred over free text.
-
-**Citation checker**
-
-- Every `[n]` in summary maps to an evidence id.
-- Every evidence id referenced must exist in bundle.
-- Optional: LLM sentence ↔ snippet entailment check (Phase 3 eval harness).
-
-If checker fails: strip summary, keep evidence, set `validation_errors`, still write report.
-
----
-
-## Index and cache
-
-Single-machine SQLite under `~/.cache/consta/` (override via env).
-
-| Table | Purpose |
-|-------|---------|
-| `evidence_raw` | serialized item bodies, etag |
-| `evidence_fts` | FTS5 virtual table |
-| `fetch_log` | url, fetched_at, status |
-| `embeddings` | optional lancedb path or blob ref |
-
-**Index refresh** (`consta index refresh --repo pytorch/pytorch`):
-
-- Incremental GitHub issue/PR sync since last cursor.
-- Respects rate limits; resumes on interrupt.
-
-Assessments prefer index when fresh; fall back to live API with shorter timeout.
-
----
-
-## Ecosystem profile
-
-Profiles are YAML on disk. Core code loads by name; no PyTorch imports in engine.
-
-See [`profiles/_template.yaml`](profiles/_template.yaml) and [`profiles/pytorch.yaml`](profiles/pytorch.yaml).
-
-Profile responsibilities:
-
-- Extra retrieval sources (discourse base URL, RFC doc patterns).
-- Synonym map for query expansion.
-- Adjacent projects list (pre-validated URLs maintained by curator).
-- Label hints for ranking boosts.
-- Freshness metadata (`last_verified`).
-
-Adding JAX = new YAML file, zero engine changes.
-
----
-
-## Delivery adapters
-
-### CLI (`consta assess`)
-
-```bash
-consta assess \
-  --question "Should we invest in reviving MaskedTensor?" \
-  --repo pytorch/pytorch \
-  --path torch/masked \
-  --ecosystem pytorch \
-  --tier 2 \
-  --output report.md
-```
-
-Flags: `--no-synthesis`, `--json`, `--refresh-index`.
-
-### GitHub App (Phase 2)
-
-- Webhook → build `AssessmentRequest` from issue title + body.
-- Call same `orchestrator.run()`.
-- `render.github_comment` → sticky comment; store report hash on issue label for idempotent re-run.
-
----
-
-## Reference walkthrough: `torch.masked`
-
-**Request**
-
-```yaml
-question: "Is reviving torch.masked / MaskedTensor worth a multi-month upstream contribution?"
-repo: pytorch/pytorch
-path: torch/masked
-ecosystem: pytorch
-tier: 2
-```
-
-**Planner output (abbreviated)**
-
-| Retriever | Planned work |
-|-----------|--------------|
-| GitHubIssues | search: `repo:pytorch/pytorch masked MaskedTensor`; boost labels from profile |
-| GitHubPRs | merged PRs `path:torch/masked` last 24 months |
-| GitActivity | log stat on `torch/masked/` |
-| RepoFiles | `CONTRIBUTING.md`, `.github/CODEOWNERS`, `docs/source/masked.md` |
-| Discourse | search dev-discuss for "masked tensor" |
-| Adjacent | validate NestedTensor, FlexAttention, `torch.nested` docs from profile |
-
-**Expected evidence IDs (golden test)**
-
-Must appear in top results for regression:
-
-- `issue-89734`, `issue-89320`, `issue-124964` (exact numbers may shift; golden file uses pattern + manual review)
-- At least one `adjacent_project` for NestedTensor or FlexAttention with live doc URL
-- `commit` or activity block showing last touch on `torch/masked`
-- Tier 2: optional `discourse_thread` or `pull_request` if linked
-
-**Open questions the report should honestly list**
-
-- Prototype label removal timeline (if not in sources).
-- Whether core team prefers NestedTensor for all masked-sequence use cases.
-- Maintainer bandwidth (inference, not fact — synthesis must say "open question").
-
----
-
-## Configuration and secrets
-
-| Env var | Purpose |
-|---------|---------|
-| `CONSTA_GITHUB_TOKEN` | fine-grained PAT, read-only |
-| `CONSTA_ANTHROPIC_API_KEY` | primary LLM |
-| `CONSTA_OPENAI_API_KEY` | fallback / embeddings |
-| `CONSTA_CACHE_DIR` | override index path |
-| `CONSTA_LLM_PROVIDER` | `anthropic` \| `openai` |
-
-Never commit tokens. `consta ping` verifies GitHub + LLM connectivity.
-
----
-
-## Testing strategy
-
-| Layer | Approach |
-|-------|----------|
-| Retrievers | pytest-httpx fixtures from recorded GitHub responses |
-| Validator | synthetic dead URLs, stale timestamps |
-| Planner | snapshot tests on torch.masked plan |
-| Golden | full assess run against fixtures → compare evidence ids |
-| Citation checker | mutate summary with bad `[n]` → expect errors |
-| Live smoke | optional nightly, rate-limited, not in CI |
-
----
-
-## Phased implementation map
-
-| Architecture piece | backlog phase |
-|--------------------|-------------------|
-| models, clients, `ping` | 0.5 |
-| Tier 1 retrievers, validator, markdown render | 1 |
-| GitHubPRs, Discourse, pytorch profile | 1.5 |
-| synthesizer + citation checker | 1 |
-| GitHub App adapter | 2 |
-| second profile, eval harness | 3 |
-
----
-
-## Open design decisions
-
-- [ ] Async (`asyncio`) vs sync retrievers with thread pool — default async for parallel I/O.
-- [ ] Embed at index time vs query time — index time for issues; query time for question embedding only.
-- [ ] Local git clone vs GitHub commits API for activity — prefer API for MVP; optional clone for offline.
-- [ ] JSON report as primary artifact with markdown as render target — lean toward yes for App idempotency.
-
+Each retriever has a `plan()` step, which builds its queries without network access,
+and an async `fetch()`. The orchestrator runs every retriever whose tier is at most the
+requested tier. One failing retriever adds a diagnostic and does not stop the run.
+
+| Retriever | Tier | Produces |
+|-----------|------|----------|
+| `github_issues` | 1 | Issues from search queries, pinned issue numbers and profile labels |
+| `repo_files` | 1 | `README.md`, `CONTRIBUTING.md`, `.github/CODEOWNERS` and the profile's `scope_files` |
+| `git_activity` | 1 | Recent commits on the path |
+| `vital_signs` | 1 | Commit counts for 3, 6 and 12 months, committers, open and closed issue counts, CODEOWNERS |
+| `adjacent_projects` | 1 | Alternative projects from the profile; each URL is fetched and kept only if it responds |
+| `github_prs` | 2 | Merged PRs on the path or topic |
+| `process_docs` | 2 | RFC and design-process pages from the profile |
+| `discourse` | 2 | Forum threads: pinned in the profile, plus site search |
+| `huggingface_discussions` | 2 | Discussions on Hugging Face Hub repos listed in the profile |
+
+## Planner
+
+`build_plan()` turns the request and profile into one `RetrievalSpec` per retriever:
+GitHub search strings, file paths and URLs. It expands the question with the profile's
+synonyms and adds pinned issues, label searches and the profile's alternative projects.
+If `--path` is not given, a profile's `path_hints` can set it from words in the question.
+No LLM is involved.
+
+## Validator
+
+`validate_evidence()` runs on every retrieved item:
+
+- Issues and PRs must match at least one specific term from the question, path or
+  profile. Matching only the project name is not enough. Pinned issues and label search
+  hits are always kept.
+- Items with an empty snippet are excluded.
+- Duplicates by URL are merged, keeping the higher score.
+
+Excluded items are kept with their reason and listed in the report.
+
+The orchestrator then orders the kept items: the top two of each kind come first, then
+the rest by score. The synthesizer only reads the first 25 items, and without this step
+they would all be issues.
+
+## Synthesizer and citation check
+
+The synthesizer sends the question and the first 25 items (id, kind, title, URL,
+snippet) to the configured LLM and asks for JSON: paragraphs, a map from `[n]` to
+evidence id, and open questions. Each claim must end with a quote of at most 15 words
+from the cited item, followed by `[n]`.
+
+`check_citations()` then requires that:
+
+- the summary has citations, and every paragraph has at least one;
+- every `[n]` maps to an evidence id in the bundle, and to the id at that position;
+- every quote appears in the cited item's title or snippet (case, whitespace, backticks
+  and quote marks are ignored; `...` may join fragments that appear in order);
+- the quote is more than the item's name, for kinds whose title is only a name
+  (alternative projects, vital signs, files).
+
+If the model numbers its citations in a different order but names valid ids, the
+citations are renumbered to those ids before the check. If the check fails, the model
+gets one retry with the errors listed. If the retry also fails, the report shows the
+evidence without a summary and lists the errors.
+
+The check confirms that each quote exists in its source. It does not confirm that the
+sentence around the quote is correct.
+
+## Profiles
+
+A profile is a YAML file in `profiles/`, loaded by name. Engine code has no
+ecosystem-specific logic. A profile can set:
+
+- `synonyms` for query expansion and on-topic matching;
+- `label_boosts` and `pinned_issue_numbers`;
+- `adjacent_projects` with a URL and a curator note (shown, never quoted);
+- `scope_files`, `path_hints`, `rfc`, `discourse`, `huggingface`;
+- `last_verified` and `max_age_days`. A profile older than that is refused unless
+  `--allow-stale-profile` is passed.
+
+## LLM providers
+
+`consta/clients/llm.py` supports Anthropic, OpenAI, OpenRouter and the Hugging Face
+router. The provider is chosen by `CONSTA_LLM_PROVIDER` and the model by
+`CONSTA_LLM_MODEL`.
+
+## Topic forecast
+
+`consta/predict/` adds a "Topic trajectory" section: inflow of new issues and the share
+resolved, recent against baseline. It refuses to print a result when its inputs are not
+measured well enough, which is the usual case. Design and status:
+[docs/PREDICT.md](docs/PREDICT.md) and [docs/PREDICT_QUADRANT.md](docs/PREDICT_QUADRANT.md).
+
+## Not built
+
+- A local index of issues and PRs (`consta/index/` is a placeholder). Every run uses
+  the GitHub API, with the search cache above.
+- Embedding-based ranking.
+- A GitHub App. The [GitHub Action](action/action.yml) covers the comment-on-new-issue case.
+- A check that a sentence is supported by its quote, beyond the quote's existence.
+
+## Tests
+
+| Layer | How |
+|-------|-----|
+| Planner, validator, citation check, renderer | Unit tests |
+| Retrievers and engine | `pytest-httpx` with mocked GitHub and HTTP responses |
+| Sample cases | Plan checks against `eval/sample_cases.yaml` |
+| Live | `CONSTA_RUN_LIVE=1 pytest tests/test_live.py` |
+
+`./scripts/verify.sh` runs everything except the live test. CI runs it on every push.
