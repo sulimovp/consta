@@ -1,12 +1,14 @@
 # Assessment: Is reviving torch.masked worth an upstream contribution?
 
-Generated: 2026-10-08T18:56:06.670306+00:00 | Repo: `pytorch/pytorch` | Profile: pytorch | Evidence freshness: 2026-08-30T00:00:00+00:00
+Generated: 2026-10-10T06:20:53.896152+00:00 | Repo: `pytorch/pytorch` | Profile: pytorch | Evidence freshness: 2026-08-30T00:00:00+00:00
 
-## Summary (model synthesis — verify citations below)
+## Summary (model synthesis; check the citations)
 
-The torch/masked module shows declining vital signs with zero commits in the last three months and only seven in six months, though it retains nine committers and a 76 % issue closure rate across ~100 open issues "commits 3/6/12mo = 0/7/23 (falling); committers=9; open\_issues\_total=100; closure\_rate=0.761" [3]. Recent activity is dominated by merge-bot traffic rather than substantive development "Latest: 80ef8b5 on 2026-07-02T15:36:56Z. Top committers: pytorchmergebot, Skylion007, aorenste" [7], and documentation remains incomplete "Masked Tensor documentation is missing" [1] despite a recent doc update PR "Update masked.rst (#89758)" [8].
+The torch/masked module shows declining commit activity with "commits 3/6/12mo = 0/7/23 (falling)" [3] despite a recent commit on "Latest: 80ef8b5 on 2026-07-02T15:36:56Z" [7]. The module has 9 committers but carries "open\_issues\_total=101" [3] with a closure rate of 0.76, indicating a substantial backlog.
 
-Open issues reveal fundamental correctness and usability gaps: masks not moving to CUDA "Mask in MaskedTensor does not change device" [24], 10× slowdown versus regular tensors for softmax "\`MaskedTensor\` 10x slower than \`Tensor\` compared with \`nn.functional.softmax\`" [23], CPU/CUDA divergence for argmax "torch.masked.argmax returns different results on CPU vs CUDA" [22], crashes in `_masked_softmax` on empty dims "\`torch.\_masked\_softmax\` on an empty softmax dim crashes the process" [16], and lack of `torch.compile` support "[torch.compile] torch.masked.median fails on integer inputs under fullgraph=True" [19]. Meanwhile, the adjacent NestedTensor project carries an explicit warning "Nested tensors are not currently under active development. Use at your own risk" [9], and FlexAttention provides a high-performance alternative for masked attention workloads "optimized attention implementations like FlashAttention" [10], suggesting some use cases may already be served elsewhere.
+Multiple correctness and performance issues persist: "\`masked\_fill\` with \`FloatTensor\` mask will never mask but fails silently" [2], "MaskedTensor 10x slower than Tensor compared with nn.functional.softmax" [23], "Mask in MaskedTensor does not change device" [24], and "Error computing the norm of MaskedTensor" [25]. Softmax-related crashes include "torch.\_masked\_softmax on an empty softmax dim crashes the process" [16] and "\_masked\_softmax\_backward reads past a smaller output tensor" [17]. Test failures appear in "masked.softmax/masked.softmin OpInfo samples can be fully masked-out" [18], "torch.masked.median fails on integer inputs under fullgraph=True" [19], and a "DISABLED test\_comprehensive\_masked\_cumprod\_xpu\_float16" [20]. Additional gaps include "dim broadcast in masked tensor between mask and data" [21] and "torch.masked.argmax returns different results on CPU vs CUDA" [22]. Documentation remains incomplete per "Masked Tensor documentation is missing" [1].
+
+Adjacent projects suggest alternative directions: "Nested tensors are not currently under active development" [9] while "optimized attention implementations like FlashAttention" [10] may address masked attention use cases. Contribution requires following the documented process: "Thank you for your interest in contributing to PyTorch" [11] and potentially an RFC via "Design / RFC index: PyTorch RFC repo" [12].
 
 ## Topic trajectory
 
@@ -43,18 +45,18 @@ _Demand×supply rollup is descriptive, from realized outcomes. Resolution-hazard
 [33] Numpy like Masked/where operations — https://github.com/pytorch/pytorch/issues/116461 — ### 🚀 The feature, motivation and pitch Numpy allows me to do masked operations such as mean/variance using `where` argu
 [34] `amax` fails on `masked_tensor` with multiple negative dims — https://github.com/pytorch/pytorch/issues/115624 — ### 🐛 Describe the bug `amax` fails on `masked_tensor` with multiple negative dims, error message: "data.size() must equ
 [35] Links on MaskedTensors are broken — https://github.com/pytorch/pytorch/issues/165134 — ### 📚 The doc issue The links provided on https://docs.pytorch.org/docs/stable/masked.html are broken. For example: http
-[36] TypeError: no implementation found for 'torch._ops.aten.max.default' on types that implement __torch_dispatch__: [<class 'torch.masked.maskedtensor.core.MaskedTensor'>] — https://github.com/pytorch/pytorch/issues/92350 — ### 🐛 Describe the bug My problem with MaskedTensor is that the stacktrace is extremely incorrect and vague, I am unable
-[37] Broken link to user guide for masked tensors — https://github.com/pytorch/pytorch/issues/173055 — ### 📚 The doc issue Tried to navigate to new user guide on the [torch.masked](https://docs.pytorch.org/docs/stable/maske
-[39] [fx] A `forward` parameter named `nan` or `inf` shadows the float constant that the generated code prints as the bare name `nan` / `inf`: `GraphModule.forward` silently uses the tensor instead of the constant (`Interpreter` is correct) — https://github.com/pytorch/pytorch/issues/198072 — [fx] A `forward` parameter named `nan` or `inf` shadows the float constant that the generated code prints as the bare na
-[40] string representation method for empty masked tensors fails — https://github.com/pytorch/pytorch/issues/115422 — ### 🐛 Describe the bug ``` import torch from torch.masked import masked_tensor empty_tensor = torch.empty(size=[0], dtyp
-[41] nn.TransformerEncoder fastpath returns NaN for fully-masked rows; propagates as silent wrong predictions downstream — https://github.com/pytorch/pytorch/issues/199054 — Fastpath in `nn.TransformerEncoder`/`nn.MultiheadAttention` returns NaN for any row where `src_key_padding_mask` masks e
+[36] [SDPA] cuDNN backward returns NaN dQ for head_dim=256 with a bool attn_mask and short sequences on Blackwell (B300, sm_103), torch 2.14.1+cu130 / cuDNN 9.24 — https://github.com/pytorch/pytorch/issues/200406 — ### 🐛 Describe the bug On a B300 (compute capability 10.3), `F.scaled_dot_product_attention` with an explicit `attn_mask
+[37] TypeError: no implementation found for 'torch._ops.aten.max.default' on types that implement __torch_dispatch__: [<class 'torch.masked.maskedtensor.core.MaskedTensor'>] — https://github.com/pytorch/pytorch/issues/92350 — ### 🐛 Describe the bug My problem with MaskedTensor is that the stacktrace is extremely incorrect and vague, I am unable
+[38] Broken link to user guide for masked tensors — https://github.com/pytorch/pytorch/issues/173055 — ### 📚 The doc issue Tried to navigate to new user guide on the [torch.masked](https://docs.pytorch.org/docs/stable/maske
+[39] nn.TransformerEncoder fastpath returns NaN for fully-masked rows; propagates as silent wrong predictions downstream — https://github.com/pytorch/pytorch/issues/199054 — Fastpath in `nn.TransformerEncoder`/`nn.MultiheadAttention` returns NaN for any row where `src_key_padding_mask` masks e
+[41] string representation method for empty masked tensors fails — https://github.com/pytorch/pytorch/issues/115422 — ### 🐛 Describe the bug ``` import torch from torch.masked import masked_tensor empty_tensor = torch.empty(size=[0], dtyp
 [45] Clarify dependency on NumPy (related to maskedtensor?) — https://github.com/pytorch/pytorch/issues/76656 — ### 🐛 Describe the bug I installed torch cpu version on a new python3.8 ubuntu 20.04 system via pip. From what I underst
-[46] DISABLED test_index_put_as_masked_fill_mask_reads_target_by_extern_kernel_cuda (__main__.GPUTests) — https://github.com/pytorch/pytorch/issues/199672 — Platforms: rocm I approve of this message. > **What fails.** `GPUTests::test_index_put_as_masked_fill_mask_reads_target_
-[47] [MPS][Inductor] Silent wrong result: a recomputed x² + y² read through F.pad becomes x² + x² — https://github.com/pytorch/pytorch/issues/199642 — ### 🐛 Describe the bug On MPS, `torch.compile` (Inductor) silently returns wrong values for the function below. Eager MP
-[48] Backpropagating on some losses produces NaN where it should not — https://github.com/pytorch/pytorch/issues/121416 — ### 🐛 Describe the bug I run into `nan` in gradients where there should not be, when using the `SmoothL1Loss`, the `MSEL
-[49] torch.to_dense backward ignores unspecified elements in sparse inputs — https://github.com/pytorch/pytorch/issues/95550 — ## Issue description For historical reasons, torch.to_dense backward on sparse inputs implements masked semantics that c
-[51] Feedback about torch.masked_fill — https://github.com/pytorch/pytorch/issues/196659 — There is the following page about masked_fill is blank: https://docs.pytorch.org/docs/2.14/generated/torch.masked_fill.h
-[52] Assertion error in Flex Attention backward pass when indexing a parameter — https://github.com/pytorch/pytorch/issues/146896 — ### 🐛 Describe the bug Flex Attention raises an assertion error during the backward pass if the `score_mod` implementati
+[46] Backpropagating on some losses produces NaN where it should not — https://github.com/pytorch/pytorch/issues/121416 — ### 🐛 Describe the bug I run into `nan` in gradients where there should not be, when using the `SmoothL1Loss`, the `MSEL
+[47] [fx] A `forward` parameter named `nan` or `inf` shadows the float constant that the generated code prints as the bare name `nan` / `inf`: `GraphModule.forward` silently uses the tensor instead of the constant (`Interpreter` is correct) — https://github.com/pytorch/pytorch/issues/198072 — [fx] A `forward` parameter named `nan` or `inf` shadows the float constant that the generated code prints as the bare na
+[48] torch.to_dense backward ignores unspecified elements in sparse inputs — https://github.com/pytorch/pytorch/issues/95550 — ## Issue description For historical reasons, torch.to_dense backward on sparse inputs implements masked semantics that c
+[49] DISABLED test_index_put_as_masked_fill_mask_reads_target_by_extern_kernel_cuda (__main__.GPUTests) — https://github.com/pytorch/pytorch/issues/199672 — Platforms: rocm I approve of this message. > **What fails.** `GPUTests::test_index_put_as_masked_fill_mask_reads_target_
+[50] [MPS][Inductor] Silent wrong result: a recomputed x² + y² read through F.pad becomes x² + x² — https://github.com/pytorch/pytorch/issues/199642 — ### 🐛 Describe the bug On MPS, `torch.compile` (Inductor) silently returns wrong values for the function below. Eager MP
+[52] Feedback about torch.masked_fill — https://github.com/pytorch/pytorch/issues/196659 — There is the following page about masked_fill is blank: https://docs.pytorch.org/docs/2.14/generated/torch.masked_fill.h
 
 ### Merged work
 
@@ -71,13 +73,13 @@ _Demand×supply rollup is descriptive, from realized outcomes. Resolution-hazard
 
 [13] README.md — https://github.com/pytorch/pytorch/blob/HEAD/README.md — <picture> <source media="(prefers-color-scheme: dark)" srcset="https://github.com/pytorch/pytorch/raw/main/docs/source/_
 [14] docs/source/masked.md — https://github.com/pytorch/pytorch/blob/HEAD/docs/source/masked.md — ```{eval-rst} .. automodule:: torch.masked .. automodule:: torch.masked.maskedtensor ``` ```{eval-rst} .. currentmodule:
-[50] torch/masked/__init__.py — https://github.com/pytorch/pytorch/blob/HEAD/torch/masked/__init__.py — from torch.masked._ops import ( _canonical_dim, _combine_input_and_mask, _generate_docstring, _input_mask, _output_mask,
+[51] torch/masked/__init__.py — https://github.com/pytorch/pytorch/blob/HEAD/torch/masked/__init__.py — from torch.masked._ops import ( _canonical_dim, _combine_input_and_mask, _generate_docstring, _input_mask, _output_mask,
 
 ### Dev-discuss and forums
 
 [4] State of PyTorch core: September 2021 edition - frontend API - PyTorch Developer Mailing List — https://dev-discuss.pytorch.org/t/state-of-pytorch-core-september-2021-edition/332 — State of PyTorch core: September 2021 edition There are a lot of projects currently going on in PyTorch core and it can 
 [5] What (and Why) is __torch_dispatch__? - frontend API - PyTorch Developer Mailing List — https://dev-discuss.pytorch.org/t/what-and-why-is-torch-dispatch/557 — With Alban Desmaison, Edward Yang, and Richard Zou. You may have seen us mention __torch_dispatch__ in various places re
-[38] Torch.nn H2 2021 Lookback and H1 2022 Lookahead - frontend API - PyTorch Developer Mailing List — https://dev-discuss.pytorch.org/t/torch-nn-h2-2021-lookback-and-h1-2022-lookahead/477 — Hey everyone! I wanted to post some quick highlights from the torch.nn work during H2 2021 and the upcoming projects we 
+[40] Torch.nn H2 2021 Lookback and H1 2022 Lookahead - frontend API - PyTorch Developer Mailing List — https://dev-discuss.pytorch.org/t/torch-nn-h2-2021-lookback-and-h1-2022-lookahead/477 — Hey everyone! I wanted to post some quick highlights from the torch.nn work during H2 2021 and the upcoming projects we 
 
 ### Adjacent projects (validated)
 
@@ -95,52 +97,52 @@ _Demand×supply rollup is descriptive, from realized outcomes. Resolution-hazard
 
 ### Module vital signs
 
-[3] Module vital signs: torch/masked — https://github.com/pytorch/pytorch/commits/torch/masked — `torch/masked`: commits 3/6/12mo = 0/7/23 (falling); committers=9; open_issues_total=100; closure_rate=0.761; CODEOWNERS
+[3] Module vital signs: torch/masked — https://github.com/pytorch/pytorch/commits/torch/masked — `torch/masked`: commits 3/6/12mo = 0/7/23 (falling); committers=9; open_issues_total=101; closure_rate=0.76; CODEOWNERS=
 
 - Commits 3 / 6 / 12 months: 0 / 7 / 23 (trend: falling) — https://github.com/pytorch/pytorch/commits/torch/masked
 - Distinct committers (12mo sample): 9; top=cyyever; active on this path in 6mo=False
-- Open issues (API total_count): 100; closed total=318; median open age days=146.0; closure_rate=0.761 — https://github.com/pytorch/pytorch/issues?q=%22torch/masked%22
+- Open issues (API total_count): 101; closed total=319; median open age days=42.0; closure_rate=0.76 — https://github.com/pytorch/pytorch/issues?q=%22torch/masked%22
 - CODEOWNERS present=True; mentions path=False — https://github.com/pytorch/pytorch/blob/HEAD/CODEOWNERS
 - Prototype/stale label hits in open sample: 0
 
 ## Retrieved but excluded
 
 - [MPS] Tracking issue: sparse compressed (CSR/CSC/BSR/BSC) tensor support — https://github.com/pytorch/pytorch/issues/196192 — _off-topic: title/snippet matched none of the profile/question tokens_
-- `[Inductor][CPU] torch.var returns NaN for large-magnitude constant float64 inputs while eager returns 0` — https://github.com/pytorch/pytorch/issues/200229 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [FX][Performance] Expensive repeated cycle checks in CapabilityBasedPartitioner.propose_partitions() — https://github.com/pytorch/pytorch/issues/200262 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [Regression 2.14 → 2.15] `torch.export.export` raises `GuardOnDataDependentSymNode` on boolean-indexed tensor in-place assignment — https://github.com/pytorch/pytorch/issues/200396 — _off-topic: title/snippet matched none of the profile/question tokens_
+- DISABLED test_serialization_array_with_empty (__main__.TestCuda) — https://github.com/pytorch/pytorch/issues/134966 — _off-topic: title/snippet matched none of the profile/question tokens_
+- `[Inductor][CPU] torch.var returns NaN for large-magnitude constant float64 inputs while eager returns 0` — https://github.com/pytorch/pytorch/issues/200229 — _off-topic: title/snippet matched none of the profile/question tokens_
+- Tensor __getitem__ not documented, sparse grad? — https://github.com/pytorch/pytorch/issues/101068 — _off-topic: title/snippet matched none of the profile/question tokens_
+- General MPS op coverage tracking issue — https://github.com/pytorch/pytorch/issues/77764 — _off-topic: title/snippet matched none of the profile/question tokens_
 - MPS: torch.mm crashes process (uncaught NSException) on non-contiguous/transposed input — regression between nightly 2026-08-31 and 2026-09-01 — https://github.com/pytorch/pytorch/issues/199882 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [Feature Request] Make torch.solve output NaN for singular matrix — https://github.com/pytorch/pytorch/issues/31546 — _off-topic: title/snippet matched none of the profile/question tokens_
-- Tensor __getitem__ not documented, sparse grad? — https://github.com/pytorch/pytorch/issues/101068 — _off-topic: title/snippet matched none of the profile/question tokens_
+- Semantics of sparse operations clarification - Sparsity of the gradient with respect to a sparse tensor input — https://github.com/pytorch/pytorch/issues/87448 — _off-topic: title/snippet matched none of the profile/question tokens_
 - Most requested ops for the MPS backend — https://github.com/pytorch/pytorch/issues/154052 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [XPU] boolean-mask indexing silently returns empty on Intel Arc B580 — https://github.com/pytorch/pytorch/issues/199163 — _off-topic: title/snippet matched none of the profile/question tokens_
-- Semantics of sparse operations clarification - Sparsity of the gradient with respect to a sparse tensor input — https://github.com/pytorch/pytorch/issues/87448 — _off-topic: title/snippet matched none of the profile/question tokens_
+- Incorrect gradients in NaN-ignoring MSE — https://github.com/pytorch/pytorch/issues/89543 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [ROCm][gfx1201/RDNA4] expandable_segments silently produces NaN in bf16 training when a depthwise F.conv1d runs across the optimizer step — https://github.com/pytorch/pytorch/issues/195202 — _off-topic: title/snippet matched none of the profile/question tokens_
 - torch.cond / while_loop / map / switch backward redraws random ops, so gradients use a different dropout mask than the forward — https://github.com/pytorch/pytorch/issues/199257 — _off-topic: title/snippet matched none of the profile/question tokens_
 - ☂️ Missing shape checks result in out-of-bounds access of Tensor data — https://github.com/pytorch/pytorch/issues/195547 — _off-topic: title/snippet matched none of the profile/question tokens_
-- Incorrect gradients in NaN-ignoring MSE — https://github.com/pytorch/pytorch/issues/89543 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [inductor] y.index_put_((mask,), v) with a mask that reads y through a transposed view reads the update's own output (regression) — https://github.com/pytorch/pytorch/issues/198533 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_serialization_array_with_empty (__main__.TestCuda) — https://github.com/pytorch/pytorch/issues/134966 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [inductor] 134 operators run under `torch.compile` on dtypes their eager kernels reject with `NotImplementedError` (bool conv, int softmax/losses, float bitwise ops, half special functions, complex norms): full list — https://github.com/pytorch/pytorch/issues/198155 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [inductor][cpu] Vectorized `torch.remainder` / `%` returns NaN for an infinite divisor and 0 for large quotients; elements handled by the scalar tail are correct, so the result depends on the tensor length and on the CPU — https://github.com/pytorch/pytorch/issues/198057 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_rerun_then_pass (test.junit_xml_testdata.pytest_suite.TestJunitOutcomes) — https://github.com/pytorch/pytorch/issues/198596 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [torch.compile] `expand` + `fill_` produces incorrect results — https://github.com/pytorch/pytorch/issues/197448 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_del_subscr_multi_stream_sync_dealloc_cuda (__main__.TestStreamsCUDA) — https://github.com/pytorch/pytorch/issues/195166 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [MPS] torch.remainder returns incorrect results for large quotients and infinite divisors — https://github.com/pytorch/pytorch/issues/200266 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_rerun_then_pass (__main__.TestJunitOutcomes) — https://github.com/pytorch/pytorch/issues/198595 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_torchvision_models_efficientnet_v2_l (__main__.TestVisionTracing) — https://github.com/pytorch/pytorch/issues/152632 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_opcheck_customopdef (__main__.TestGenerateOpcheckTests) — https://github.com/pytorch/pytorch/issues/200213 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [dynamo] torch.compile: StreamContextVariable.python_type() hardcoded to torch.cuda.StreamContext, returns wrong type for XPU/NPU — https://github.com/pytorch/pytorch/issues/200260 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [Inductor] torch.mvlgamma silently returns zeros for p=0 instead of raising the eager p>=1 check — https://github.com/pytorch/pytorch/issues/200228 — _off-topic: title/snippet matched none of the profile/question tokens_
-- `[Inductor][CUDA] FTZ on subnormal inputs causes O(1) errors in ceil(float32) and atan2(bfloat16)` — https://github.com/pytorch/pytorch/issues/200239 — _off-topic: title/snippet matched none of the profile/question tokens_
-- `[Inductor] nll_loss silently computes a loss for a shape-mismatched target that eager and aot_eager reject` — https://github.com/pytorch/pytorch/issues/200244 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [inductor] Integer floor division of the dtype's minimum by a negative divisor has the wrong sign on CUDA — https://github.com/pytorch/pytorch/issues/198545 — _off-topic: title/snippet matched none of the profile/question tokens_
-- Support `bytearray` in Dynamo — https://github.com/pytorch/pytorch/issues/192126 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [DO NOT CLOSE] Autorevert actions shadow mode stream — https://github.com/pytorch/pytorch/issues/163650 — _off-topic: title/snippet matched none of the profile/question tokens_
-- Python 3.15 support for PyTorch — https://github.com/pytorch/pytorch/issues/184352 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [v.2.15.0] Release Tracker — https://github.com/pytorch/pytorch/issues/199813 — _off-topic: title/snippet matched none of the profile/question tokens_
-- DISABLED test_eager_equivalence_nn_functional_gelu_backend_inductor_default_cuda_float32 (__main__.TestOpInfoPropertiesCUDA) — https://github.com/pytorch/pytorch/issues/188840 — _off-topic: title/snippet matched none of the profile/question tokens_
-- [Inductor] soft_margin_loss returns wrong dtype for mixed-dtype input and target — https://github.com/pytorch/pytorch/issues/198994 — _off-topic: title/snippet matched none of the profile/question tokens_
-- Torch Elastic Wait timeout increase — https://github.com/pytorch/pytorch/issues/157318 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [dynamo] checkpoint(use_reentrant=False) raises NotImplementedError for a nested-function context_fn — https://github.com/pytorch/pytorch/issues/200444 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [CUDA] torch.linalg.svd / svdvals / pinv: batched performance cliff at n = 32 -> 33 (default gesvdj loops per matrix), up to 130x slower than driver="gesvda" — https://github.com/pytorch/pytorch/issues/200486 — _off-topic: title/snippet matched none of the profile/question tokens_
+- Blocking CUDA-to-CPU UntypedStorage.copy_ retains the GIL, unlike Tensor.copy_ — https://github.com/pytorch/pytorch/issues/200410 — _off-topic: title/snippet matched none of the profile/question tokens_
+- torch._nnpack_spatial_convolution has no meta kernel, fails under torch.compile ("Mismatched Tensor types in NNPack convolutionOutput") — https://github.com/pytorch/pytorch/issues/200443 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [CUDA] torch.mode is ~80-100x slower when the reduced dimension exceeds 2048 (per-slice host loop fallback) — https://github.com/pytorch/pytorch/issues/200485 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [dynamo] obj * tensor, tensor * obj and obj -= tensor do not call obj.__mul__ / __rmul__ / __isub__ when obj is a plain Python class — https://github.com/pytorch/pytorch/issues/200455 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [dynamo] Meta-issue: torch.compile gaps found via the CPython test suite — https://github.com/pytorch/pytorch/issues/195901 — _off-topic: title/snippet matched none of the profile/question tokens_
+- Torch MaxPooling1D rejects int8/int16/int64 accepted by TensorFlow — https://github.com/pytorch/pytorch/issues/200482 — _off-topic: title/snippet matched none of the profile/question tokens_
+- PyTorch/Helion project creating enormous amount of B200 requests that are affecting PyTorch/PyTorch — https://github.com/pytorch/pytorch/issues/200457 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [dynamo] _stream_fn_to_variable_cls hardcodes CUDA/XPU only, out-of-tree backend StreamVariable subclass cannot be registered — https://github.com/pytorch/pytorch/issues/200255 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [Inductor tests] CPU capability probe failures hide requested CPU tests — https://github.com/pytorch/pytorch/issues/200390 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [Feature Request] Make Inductor benchmark GPU device-type selection accelerator-agnostic (third-party devices) — https://github.com/pytorch/pytorch/issues/200380 — _off-topic: title/snippet matched none of the profile/question tokens_
+- torch.compile produces incorrect results and loses object state mutations for control flow based on mutable object identity — https://github.com/pytorch/pytorch/issues/196173 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [xpu] torch.compile(mode="reduce-overhead") silently no-ops on XPU — https://github.com/pytorch/pytorch/issues/200478 — _off-topic: title/snippet matched none of the profile/question tokens_
+- torch.compile produces incorrect results when calling iter() on a partially consumed reversed iterator — https://github.com/pytorch/pytorch/issues/196211 — _off-topic: title/snippet matched none of the profile/question tokens_
+- [TorchInductor] `cat_splitwithsizes_replace` misses equivalent negative dimension spelling — https://github.com/pytorch/pytorch/issues/196905 — _off-topic: title/snippet matched none of the profile/question tokens_
+- DISABLED test_numpy_ref_linalg_tensorinv_xpu_float64 (__main__.TestCommonXPU) — https://github.com/pytorch/pytorch/issues/200245 — _off-topic: title/snippet matched none of the profile/question tokens_
+- DISABLED test_linalg_batched_lu_stability_large_inputs_cuda_float64 (__main__.TestLinalgCUDA) — https://github.com/pytorch/pytorch/issues/197394 — _off-topic: title/snippet matched none of the profile/question tokens_
+- DISABLED test_linalg_batched_lu_stability_large_inputs_cuda_float32 (__main__.TestLinalgCUDA) — https://github.com/pytorch/pytorch/issues/197180 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [Inductor][MPS] Fix half-precision type mismatches in Metal shader codegen (#176436) — https://github.com/pytorch/pytorch/pull/177193 — _off-topic: title/snippet matched none of the profile/question tokens_
 - Dont exclude constant_pad_nd in prologue fusion — https://github.com/pytorch/pytorch/pull/150145 — _off-topic: title/snippet matched none of the profile/question tokens_
 - [LTC] Add support for non-structured in-place operator variants — https://github.com/pytorch/pytorch/pull/67126 — _off-topic: title/snippet matched none of the profile/question tokens_
@@ -151,10 +153,11 @@ _Demand×supply rollup is descriptive, from realized outcomes. Resolution-hazard
 ## Open questions
 
 - Whether adjacent libraries or APIs already cover this use case better than extending the target feature (see evidence: NestedTensor, FlexAttention, torch.nested). Confirm with maintainers before investing.
-- Is there a maintainer-approved roadmap or RFC for reviving torch.masked, or is it intentionally deprecated?
-- Are the open correctness bugs (device handling, CPU/CUDA parity, compile support) prioritized for fixes, or will they remain unresolved?
-- Does the performance gap (10× slowdown) have a known optimization path, or is it architectural?
-- Would contributions overlap with FlexAttention or other masked-kernel efforts already in progress?
+- What is the maintainer roadmap for torch.masked?
+- Is there active work on a replacement or successor to MaskedTensor?
+- Are the 101 open issues being actively triaged or prioritized?
+- Does the 10x performance gap have a known path to improvement?
+- Would contributions overlap with FlexAttention or NestedTensor efforts?
 
 ## Diagnostics
 
@@ -162,7 +165,7 @@ _Pipeline notes; useful when reporting a problem._
 
 - Discourse search on https://dev-discuss.pytorch.org/ returned no extra threads — review search terms or add pinned_threads.
 - topic_history: maintainer set empty — R1-by-answer disabled
-- topic_history: R1 sample truncated: 75 closed issues in 2024-10-08..2026-04-10, cap 50
+- topic_history: R1 sample truncated: 68 closed issues in 2024-10-10..2026-04-12, cap 50
 
 ## Sources index
 
@@ -201,20 +204,20 @@ _Pipeline notes; useful when reporting a problem._
 [33] issue-116461 — https://github.com/pytorch/pytorch/issues/116461
 [34] issue-115624 — https://github.com/pytorch/pytorch/issues/115624
 [35] issue-165134 — https://github.com/pytorch/pytorch/issues/165134
-[36] issue-92350 — https://github.com/pytorch/pytorch/issues/92350
-[37] issue-173055 — https://github.com/pytorch/pytorch/issues/173055
-[38] discourse-477 — https://dev-discuss.pytorch.org/t/torch-nn-h2-2021-lookback-and-h1-2022-lookahead/477
-[39] issue-198072 — https://github.com/pytorch/pytorch/issues/198072
-[40] issue-115422 — https://github.com/pytorch/pytorch/issues/115422
-[41] issue-199054 — https://github.com/pytorch/pytorch/issues/199054
+[36] issue-200406 — https://github.com/pytorch/pytorch/issues/200406
+[37] issue-92350 — https://github.com/pytorch/pytorch/issues/92350
+[38] issue-173055 — https://github.com/pytorch/pytorch/issues/173055
+[39] issue-199054 — https://github.com/pytorch/pytorch/issues/199054
+[40] discourse-477 — https://dev-discuss.pytorch.org/t/torch-nn-h2-2021-lookback-and-h1-2022-lookahead/477
+[41] issue-115422 — https://github.com/pytorch/pytorch/issues/115422
 [42] adjacent-torch.nested — https://github.com/pytorch/pytorch/tree/main/torch/nested
 [43] pr-82405 — https://github.com/pytorch/pytorch/pull/82405
 [44] pr-68119 — https://github.com/pytorch/pytorch/pull/68119
 [45] issue-76656 — https://github.com/pytorch/pytorch/issues/76656
-[46] issue-199672 — https://github.com/pytorch/pytorch/issues/199672
-[47] issue-199642 — https://github.com/pytorch/pytorch/issues/199642
-[48] issue-121416 — https://github.com/pytorch/pytorch/issues/121416
-[49] issue-95550 — https://github.com/pytorch/pytorch/issues/95550
-[50] file-torch-masked-__init__-py — https://github.com/pytorch/pytorch/blob/HEAD/torch/masked/__init__.py
-[51] issue-196659 — https://github.com/pytorch/pytorch/issues/196659
-[52] issue-146896 — https://github.com/pytorch/pytorch/issues/146896
+[46] issue-121416 — https://github.com/pytorch/pytorch/issues/121416
+[47] issue-198072 — https://github.com/pytorch/pytorch/issues/198072
+[48] issue-95550 — https://github.com/pytorch/pytorch/issues/95550
+[49] issue-199672 — https://github.com/pytorch/pytorch/issues/199672
+[50] issue-199642 — https://github.com/pytorch/pytorch/issues/199642
+[51] file-torch-masked-__init__-py — https://github.com/pytorch/pytorch/blob/HEAD/torch/masked/__init__.py
+[52] issue-196659 — https://github.com/pytorch/pytorch/issues/196659

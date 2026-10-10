@@ -1,4 +1,5 @@
 import asyncio
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -7,8 +8,10 @@ import typer
 
 from consta.clients import build_clients
 from consta.config import get_settings
+from consta.engine.citation_checker import check_citations
 from consta.engine.orchestrator import AssessmentEngine
-from consta.models.assessment import AssessmentRequest
+from consta.engine.synthesizer import SYNTHESIS_LIMIT
+from consta.models.assessment import AssessmentReport, AssessmentRequest
 from consta.profiles import ProfileNotFoundError, ProfileStaleError, list_profiles, load_profile
 from consta.render.markdown import render_markdown
 
@@ -51,6 +54,43 @@ def assess(
             allow_stale_profile=allow_stale_profile,
         )
     )
+
+
+@app.command()
+def check(
+    report_path: Path = typer.Argument(..., exists=True, dir_okay=False, help="Report saved with --output report.json."),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Write the re-checked markdown report to file."),
+) -> None:
+    """Re-run the citation check on a saved JSON report. Works offline."""
+    report = AssessmentReport.model_validate_json(report_path.read_text(encoding="utf-8"))
+    if not report.summary:
+        typer.echo("No summary in this report; nothing to check.")
+        raise typer.Exit(0)
+
+    items = report.evidence.items
+    slots = items[:SYNTHESIS_LIMIT]
+    errors = check_citations(
+        report.summary,
+        report.citation_map,
+        report.evidence.evidence_ids(),
+        id_by_num={n: item.id for n, item in enumerate(slots, start=1)},
+        items_by_id={item.id: item for item in slots},
+    )
+    cited = len(set(re.findall(r"\[(\d+)\]", report.summary)))
+    if errors:
+        report.summary = None
+        report.validation_errors = errors
+        typer.echo(f"FAILED: {len(errors)} citation error(s). Summary withheld; evidence kept.")
+        for err in errors:
+            typer.echo(f"  - {err}")
+    else:
+        typer.echo(f"OK: {cited} citations, every quote found in its source.")
+
+    if output:
+        output.write_text(render_markdown(report), encoding="utf-8")
+        typer.echo(f"Wrote {output}")
+    if errors:
+        raise typer.Exit(1)
 
 
 @app.command("list-profiles")

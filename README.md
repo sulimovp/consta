@@ -13,6 +13,7 @@ consta assess -q "Is reviving torch.masked worth an upstream contribution?" \
   -r pytorch/pytorch -p torch/masked -e pytorch --no-synthesis
 ```
 
+[CHECKLIST.md](CHECKLIST.md) is the same method by hand, with `gh`, `git` and `rg`.
 [examples/](examples/README.md) has two real reports and explains how a report is built.
 [ARCHITECTURE.md](ARCHITECTURE.md) describes the code.
 
@@ -67,6 +68,10 @@ consta assess \
 | `--no-synthesis` | Skip the LLM summary |
 | `--json` | Print the report as JSON |
 | `--allow-stale-profile` | Use a profile older than its `max_age_days` |
+
+`consta check report.json` re-runs the citation check on a report saved as JSON
+(`--output report.json`). It works offline; a summary whose quotes do not match its
+sources is withheld.
 
 ### Web UI
 

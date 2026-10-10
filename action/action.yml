@@ -36,7 +36,7 @@ inputs:
   version:
     description: consta version to install from PyPI (pin this for reproducible runs)
     required: false
-    default: "0.2.1"
+    default: "0.2.2"
 
 runs:
   using: composite

@@ -1,12 +1,11 @@
 # Examples
 
-Two reports generated on 8 October 2026 with `nvidia/nemotron-3-ultra-550b-a55b:free`
-on OpenRouter:
+Reports generated with `nvidia/nemotron-3-ultra-550b-a55b:free` on OpenRouter:
 
-| Report | Question |
-|--------|----------|
-| [torch-masked.md](torch-masked.md) | Is reviving `torch.masked` worth an upstream contribution? |
-| [numpy-ma.md](numpy-ma.md) | Is improving `numpy.ma` worth an upstream contribution, given `__array_function__`? |
+| Report | Question | Date |
+|--------|----------|------|
+| [torch-masked.md](torch-masked.md), [torch-masked.json](torch-masked.json) | Is reviving `torch.masked` worth an upstream contribution? | 10 October 2026 |
+| [numpy-ma.md](numpy-ma.md) | Is improving `numpy.ma` worth an upstream contribution, given `__array_function__`? | 8 October 2026 |
 
 GitHub changes daily, so a new run will differ. The rest of this page follows the
 `torch.masked` run through each stage.
@@ -108,6 +107,32 @@ In the `torch.masked` report the evidence alone shows the situation: many open b
 commits in three months, and the nearest alternative, NestedTensor, is itself marked as
 not under active development.
 
+## Checking a report yourself
+
+`consta check` re-runs the citation check on a saved JSON report. It needs no network
+and no keys:
+
+```bash
+consta check examples/torch-masked.json
+# OK: 18 citations, every quote found in its source.
+```
+
+Change one quote in the summary and run it again:
+
+```bash
+python -c "
+import json
+d = json.load(open('examples/torch-masked.json'))
+d['summary'] = d['summary'].replace('0/7/23 (falling)', '9/17/43 (rising)', 1)
+json.dump(d, open('forged.json', 'w'))
+"
+consta check forged.json -o forged.md
+# FAILED: 1 citation error(s). Summary withheld; evidence kept.
+#   - Citation [3] quote 'commits 3/6/12mo = 9/17/43 (rising)' not found in cited item 'vitals-torch-masked'
+```
+
+`forged.md` has the evidence and the error, and no summary.
+
 ## Running it
 
 ```bash
@@ -115,6 +140,8 @@ pip install -e ".[dev,web]"
 cp .env.example .env    # set CONSTA_GITHUB_TOKEN; an LLM key is optional
 consta ping
 consta assess -q "..." -r owner/repo -p path/in/repo --no-synthesis
+consta assess -q "..." -r owner/repo -p path/in/repo -o report.json   # with a summary, saved as JSON
+consta check report.json
 ```
 
 More questions are in [eval/sample_cases.yaml](../eval/sample_cases.yaml).

@@ -9,11 +9,9 @@ if TYPE_CHECKING:
     from consta.models.evidence import EvidenceItem
 
 _REF_RE = re.compile(r"\[(\d+)\]")
-# Quote of at most 15 words immediately before one or more citation markers.
-# `"span" [1][2]` attaches the same span to both numbers.
-_QUOTE_THEN_CITES_RE = re.compile(
-    r'"([^"]{1,240})"\s*((?:\[\d+\])+)'
-)
+# A quote of at most 15 words must sit immediately before each group of markers.
+_MARKER_GROUP_RE = re.compile(r"(?:\[\d+\])+")
+_QUOTE_BEFORE_RE = re.compile(r'"([^"]{1,240})"\s*$')
 _CITE_NUM_RE = re.compile(r"\[(\d+)\]")
 # Kinds whose title is itself content (an issue title states the bug); other titles are names.
 _CONTENT_TITLED_KINDS = frozenset(
@@ -67,12 +65,16 @@ def check_citations(
             errors.append(f"citation_map[{num}] references unknown evidence id {evidence_id!r}")
 
     if items_by_id is not None:
-        quote_hits = _quotes_for_citations(summary)
-        for num in sorted(refs_in_text):
+        # Check every marker on its own: a number cited twice needs both quotes to hold,
+        # otherwise a fabricated first quote hides behind a genuine second one.
+        seen: set[tuple[int, str | None]] = set()
+        for num, quote in _citation_uses(summary):
+            if (num, quote) in seen:
+                continue
+            seen.add((num, quote))
             evidence_id = citation_map.get(num)
             if evidence_id is None or evidence_id not in items_by_id:
                 continue
-            quote = quote_hits.get(num)
             if not quote:
                 errors.append(
                     f"Citation [{num}] is missing a short verbatim quote (≤15 words) "
@@ -100,13 +102,18 @@ def check_citations(
     return errors
 
 
-def _quotes_for_citations(summary: str) -> dict[int, str]:
-    hits: dict[int, str] = {}
-    for match in _QUOTE_THEN_CITES_RE.finditer(summary):
-        quote = match.group(1).strip()
-        for num_s in _CITE_NUM_RE.findall(match.group(2)):
-            hits[int(num_s)] = quote
-    return hits
+def _citation_uses(summary: str) -> list[tuple[int, str | None]]:
+    """Each citation marker with the quote right before it (None if there is none).
+
+    `"span" [1][2]` attaches the same span to both numbers.
+    """
+    uses: list[tuple[int, str | None]] = []
+    for group in _MARKER_GROUP_RE.finditer(summary):
+        before = _QUOTE_BEFORE_RE.search(summary, 0, group.start())
+        quote = before.group(1).strip() if before else None
+        for num_s in _CITE_NUM_RE.findall(group.group(0)):
+            uses.append((int(num_s), quote))
+    return uses
 
 
 def quote_haystack(item: EvidenceItem) -> str:

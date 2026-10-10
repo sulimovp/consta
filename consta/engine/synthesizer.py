@@ -17,7 +17,7 @@ Rules:
   {"paragraphs": "...", "citations": {"1": "evidence-id"}, "open_questions": ["...", "..."]}
 - If evidence is insufficient, say so in paragraphs and open_questions. Do not guess."""
 
-_SYNTHESIS_LIMIT = 25
+SYNTHESIS_LIMIT = 25
 # Reasoning models (gpt-oss on the HF router) spend most of the budget thinking;
 # a tight cap truncates the JSON and the whole synthesis is lost.
 _MAX_TOKENS = 8000
@@ -30,7 +30,7 @@ async def synthesize(
 ) -> tuple[str | None, dict[int, str], list[str], dict[int, str]]:
     numbered = []
     id_by_num: dict[int, str] = {}
-    for idx, item in enumerate(items[:_SYNTHESIS_LIMIT], start=1):
+    for idx, item in enumerate(items[:SYNTHESIS_LIMIT], start=1):
         id_by_num[idx] = item.id
         numbered.append(
             f"[{idx}] id={item.id} kind={item.kind} title={item.title}\n"
@@ -46,7 +46,7 @@ async def synthesize(
     raw = await llm.complete(_SYSTEM, user, max_tokens=_MAX_TOKENS)
     paragraphs, citation_map, open_questions = _parse_synthesis(raw, id_by_num)
 
-    items_by_id = {item.id: item for item in items[:_SYNTHESIS_LIMIT]}
+    items_by_id = {item.id: item for item in items[:SYNTHESIS_LIMIT]}
     errors = check_citations(
         paragraphs,
         citation_map,

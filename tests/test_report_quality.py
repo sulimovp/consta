@@ -126,3 +126,45 @@ def test_quote_ignores_code_ticks_and_inner_quotes():
     ok = check_citations('x "allow a strict mode for BaggingClassifier" [1]', {1: "issue-9"}, {"issue-9"}, **kwargs)
     bad = check_citations('x "allow a lenient mode for BaggingClassifier" [1]', {1: "issue-9"}, {"issue-9"}, **kwargs)
     assert ok == [] and bad
+
+
+def test_every_use_of_a_reused_citation_is_checked():
+    item = _item("vitals", EvidenceKind.VITAL_SIGNS, 0.9, title="Vitals", snippet="commits 0/7/23 (falling); open=101")
+    kwargs = dict(id_by_num={1: "vitals"}, items_by_id={"vitals": item})
+    honest = 'Activity "commits 0/7/23 (falling)" [1] and backlog "open=101" [1].'
+    forged = 'Activity "commits 9/17/43 (rising)" [1] and backlog "open=101" [1].'
+    assert check_citations(honest, {1: "vitals"}, {"vitals"}, **kwargs) == []
+    errors = check_citations(forged, {1: "vitals"}, {"vitals"}, **kwargs)
+    assert any("9/17/43" in e for e in errors)
+
+
+def test_check_command_strips_a_forged_summary(tmp_path):
+    from typer.testing import CliRunner
+
+    from consta.cli import app
+    from consta.models.assessment import AssessmentReport, AssessmentRequest
+    from consta.models.evidence import EvidenceBundle
+
+    item = _item("issue-1", EvidenceKind.ISSUE, 0.9, title="Docs are missing", snippet="Docs are missing — body")
+    report = AssessmentReport(
+        request=AssessmentRequest(question="q", repo="o/r"),
+        evidence=EvidenceBundle(items=[item]),
+        summary='The docs gap is real: "Docs are missing" [1].',
+        citation_map={1: "issue-1"},
+    )
+    good = tmp_path / "good.json"
+    good.write_text(report.model_dump_json(), encoding="utf-8")
+    bad = tmp_path / "bad.json"
+    bad.write_text(
+        report.model_copy(update={"summary": 'The docs are complete: "Docs are complete" [1].'}).model_dump_json(),
+        encoding="utf-8",
+    )
+    runner = CliRunner()
+    ok = runner.invoke(app, ["check", str(good)])
+    assert ok.exit_code == 0 and "OK" in ok.output
+    out = tmp_path / "bad.md"
+    failed = runner.invoke(app, ["check", str(bad), "-o", str(out)])
+    assert failed.exit_code == 1 and "Summary withheld" in failed.output
+    md = out.read_text(encoding="utf-8")
+    assert "## Summary (model synthesis" not in md and "Synthesis skipped" in md
+    assert "Docs are missing" in md  # evidence kept
