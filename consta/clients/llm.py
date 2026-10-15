@@ -83,7 +83,7 @@ class LlmClient:
         if not key:
             raise RuntimeError("CONSTA_OPENAI_API_KEY is not set")
         response = await self._client.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"{self._settings.openai_base_url.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {key}", "content-type": "application/json"},
             json={
                 "model": self._settings.resolved_llm_model(),
@@ -141,7 +141,7 @@ class LlmClient:
         if response_format is not None:
             payload["response_format"] = response_format
         response = await self._client.post(
-            "https://api.openai.com/v1/chat/completions",
+            f"{self._settings.openai_base_url.rstrip('/')}/chat/completions",
             headers={"Authorization": f"Bearer {key}", "content-type": "application/json"},
             json=payload,
         )
