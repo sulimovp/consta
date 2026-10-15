@@ -39,6 +39,7 @@ Consta reads `./.env` and `~/.config/consta/.env`.
 | `CONSTA_LLM_PROVIDER` | No | `anthropic` (default), `openai`, `openrouter` or `huggingface` |
 | `CONSTA_ANTHROPIC_API_KEY` | No | Key for `anthropic` |
 | `CONSTA_OPENAI_API_KEY` | No | Key for `openai` |
+| `CONSTA_OPENAI_BASE_URL` | No | Base URL for `openai`, for any OpenAI-compatible server (default `https://api.openai.com/v1`) |
 | `CONSTA_OPENROUTER_API_KEY` | No | Key for `openrouter` |
 | `CONSTA_HF_TOKEN` | No | Key for `huggingface`; also used to read gated Hugging Face Hub discussions |
 | `CONSTA_LLM_MODEL` | No | Model id, if not the provider's default |

@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
     openrouter_api_key: str | None = None
+    # Any OpenAI-compatible server (vLLM, llama.cpp, a local AirLLM wrapper).
+    openai_base_url: str = "https://api.openai.com/v1"
     llm_provider: str = "anthropic"
     llm_model: str | None = None
     cache_dir: Path = Path.home() / ".cache" / "consta"
