@@ -86,6 +86,13 @@ def test_parse_synthesis_normalizes_numeric_issue_ids():
     assert cites == {1: "issue-89734"}
 
 
+def test_parse_synthesis_accepts_raw_newlines_in_strings():
+    raw = '```json\n{"paragraphs": "One [1].\n\nTwo [1].", "citations": {"1": "a"}}\n```'
+    paragraphs, cites, _ = _parse_synthesis(raw, {1: "a"})
+    assert paragraphs == "One [1].\n\nTwo [1]."
+    assert cites == {1: "a"}
+
+
 def test_parse_synthesis_does_not_fill_from_bare_brackets():
     """Prose-only fallback must leave citations empty so the checker can reject unsourced [n]."""
     paragraphs, cites, _ = _parse_synthesis("Native tool use [1][2].", {1: "a", 2: "b"})

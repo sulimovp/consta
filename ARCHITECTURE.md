@@ -134,8 +134,9 @@ ecosystem-specific logic. A profile can set:
 
 ## LLM providers
 
-`consta/clients/llm.py` supports Anthropic, OpenAI, OpenRouter and the Hugging Face
-router. The provider is chosen by `CONSTA_LLM_PROVIDER` and the model by
+`consta/clients/llm.py` supports Anthropic, OpenAI, OpenRouter, the Hugging Face
+router, and the local Claude Code CLI (`claude-code`, which runs `claude -p` with tools
+off and uses the account the CLI is logged in with). The provider is chosen by `CONSTA_LLM_PROVIDER` and the model by
 `CONSTA_LLM_MODEL`.
 
 ## Topic forecast

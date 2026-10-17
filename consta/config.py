@@ -1,3 +1,4 @@
+import shutil
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -31,6 +32,8 @@ class Settings(BaseSettings):
     # Any OpenAI-compatible server (vLLM, llama.cpp, a local AirLLM wrapper).
     openai_base_url: str = "https://api.openai.com/v1"
     llm_provider: str = "anthropic"
+    # Path to the Claude Code CLI for the claude-code provider (default: found on PATH).
+    claude_cli: str | None = None
     llm_model: str | None = None
     cache_dir: Path = Path.home() / ".cache" / "consta"
     profiles_dir: Path | None = None
@@ -38,6 +41,8 @@ class Settings(BaseSettings):
     http_timeout: float = 30.0
 
     def llm_configured(self) -> bool:
+        if self.llm_provider == "claude-code":
+            return self.resolved_claude_cli() is not None
         if self.llm_provider == "openai":
             return bool(self.openai_api_key)
         if self.llm_provider == "huggingface":
@@ -55,7 +60,12 @@ class Settings(BaseSettings):
             return "openai/gpt-oss-120b:groq"
         if self.llm_provider == "openrouter":
             return "anthropic/claude-sonnet-5.5"
+        if self.llm_provider == "claude-code":
+            return "sonnet"
         return "claude-haiku-4-5"
+
+    def resolved_claude_cli(self) -> str | None:
+        return self.claude_cli or shutil.which("claude")
 
     def resolved_profiles_dir(self) -> Path:
         if self.profiles_dir is not None:

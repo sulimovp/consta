@@ -1,3 +1,7 @@
+import asyncio
+import json
+import tempfile
+
 import httpx
 
 from consta.config import Settings
@@ -19,6 +23,10 @@ class LlmClient:
         provider = self._settings.llm_provider
         if provider == "openai":
             return await self._ping_openai()
+        if provider == "claude-code":
+            return await self._complete_claude_code(
+                "You are a ping probe.", "Reply with exactly: pong"
+            )
         if provider == "openrouter":
             return await self._complete_openrouter(
                 "You are a ping probe.", "Reply with exactly: pong", max_tokens=512
@@ -52,7 +60,41 @@ class LlmClient:
             return await self._complete_openrouter(
                 system, user, max_tokens=max_tokens, response_format=response_format
             )
+        if provider == "claude-code":
+            return await self._complete_claude_code(system, user)
         return await self._complete_anthropic(system, user, max_tokens=max_tokens)
+
+    async def _complete_claude_code(self, system: str, user: str) -> str:
+        """Run one prompt through the local Claude Code CLI (`claude -p`).
+
+        Uses whatever account `claude` is logged in with, so a Claude subscription works
+        without an API key. Tools are disabled and the CLI runs in an empty directory,
+        so it answers from the prompt alone, like the HTTP providers.
+        """
+        cli = self._settings.resolved_claude_cli()
+        if not cli:
+            raise RuntimeError("Claude Code CLI not found; install it or set CONSTA_CLAUDE_CLI")
+        args = [
+            cli, "-p", "--output-format", "json", "--tools", "", "--no-session-persistence",
+            "--system-prompt", system, "--model", self._settings.resolved_llm_model(),
+        ]
+        with tempfile.TemporaryDirectory() as cwd:
+            proc = await asyncio.create_subprocess_exec(
+                *args,
+                cwd=cwd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            out, err = await proc.communicate(user.encode("utf-8"))
+        try:
+            data = json.loads(out.decode("utf-8", "replace"))
+        except ValueError:
+            detail = (err or out).decode("utf-8", "replace").strip()[:300]
+            raise RuntimeError(f"claude -p failed (exit {proc.returncode}): {detail}") from None
+        if data.get("is_error") or proc.returncode:
+            raise RuntimeError(f"claude -p failed: {str(data.get('result', ''))[:300]}")
+        return str(data.get("result") or "")
 
     async def _ping_anthropic(self) -> str:
         key = self._settings.anthropic_api_key

@@ -92,7 +92,8 @@ def _parse_synthesis(
 ) -> tuple[str | None, dict[int, str], list[str]]:
     for candidate in _json_candidates(raw):
         try:
-            data = json.loads(candidate)
+            # strict=False: models put raw newlines inside JSON strings.
+            data = json.loads(candidate, strict=False)
         except (json.JSONDecodeError, ValueError, TypeError):
             continue
         if not isinstance(data, dict):
