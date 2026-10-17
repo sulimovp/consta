@@ -36,15 +36,20 @@ Consta reads `./.env` and `~/.config/consta/.env`.
 | Variable | Required | Purpose |
 |----------|----------|---------|
 | `CONSTA_GITHUB_TOKEN` | Yes | GitHub token (fine-grained, or classic with `public_repo`) |
-| `CONSTA_LLM_PROVIDER` | No | `anthropic` (default), `openai`, `openrouter` or `huggingface` |
+| `CONSTA_LLM_PROVIDER` | No | `anthropic` (default), `openai`, `openrouter`, `huggingface` or `claude-code` |
 | `CONSTA_ANTHROPIC_API_KEY` | No | Key for `anthropic` |
 | `CONSTA_OPENAI_API_KEY` | No | Key for `openai` |
 | `CONSTA_OPENAI_BASE_URL` | No | Base URL for `openai`, for any OpenAI-compatible server (default `https://api.openai.com/v1`) |
 | `CONSTA_OPENROUTER_API_KEY` | No | Key for `openrouter` |
 | `CONSTA_HF_TOKEN` | No | Key for `huggingface`; also used to read gated Hugging Face Hub discussions |
+| `CONSTA_CLAUDE_CLI` | No | Path to the `claude` CLI for `claude-code`, if it is not on `PATH` |
 | `CONSTA_LLM_MODEL` | No | Model id, if not the provider's default |
 
 Without an LLM key the report has no summary; everything else works.
+
+`claude-code` sends the summary prompt through the local Claude Code CLI (`claude -p`, tools
+off), so it uses whatever account `claude` is logged in with, including a Claude
+subscription. It needs no API key; the model defaults to `sonnet`.
 
 ## Usage
 
