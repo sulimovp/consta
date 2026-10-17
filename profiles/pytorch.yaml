@@ -27,10 +27,10 @@ label_boosts:
 
 adjacent_projects:
   - name: NestedTensor
-    url: https://pytorch.org/docs/stable/nested.html
+    url: https://docs.pytorch.org/docs/stable/nested.html
     relevance: Core team's structured approach to ragged/masked batch data; often preferred over MaskedTensor for sequence models.
   - name: FlexAttention
-    url: https://pytorch.org/blog/flexattention/
+    url: https://docs.pytorch.org/docs/stable/nn.attention.flex_attention.html
     relevance: Masked attention patterns without a dedicated MaskedTensor type in hot paths.
   - name: torch.nested
     url: https://github.com/pytorch/pytorch/tree/main/torch/nested
