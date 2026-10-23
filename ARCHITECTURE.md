@@ -153,6 +153,8 @@ measured well enough, which is the usual case. Design and status:
 - Embedding-based ranking.
 - A GitHub App. The [GitHub Action](action/action.yml) covers the comment-on-new-issue case.
 - A check that a sentence is supported by its quote, beyond the quote's existence.
+- Drafting a profile with the configured LLM when a repository has none. Design and
+  pitfalls: [docs/PROFILE_DRAFT.md](docs/PROFILE_DRAFT.md).
 
 ## Tests
 
